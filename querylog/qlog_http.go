@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/AdguardTeam/golibs/log"
@@ -76,9 +77,15 @@ func (l *queryLog) handleQueryLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.filterResponseStatus) != 0 {
-		switch req.filterResponseStatus {
-		case "filtered":
+		switch strings.ToLower(req.filterResponseStatus) {
+		case "f":
 			params.ResponseStatus = responseStatusFiltered
+		case "wl":
+			params.ResponseStatus = responseStatusWhitelist
+		case "sb":
+			params.ResponseStatus = responseStatusSafeBrowsing
+		case "p":
+			params.ResponseStatus = responseStatusParental
 		default:
 			httpError(r, w, http.StatusBadRequest, "invalid response_status")
 			return

@@ -97,9 +97,10 @@ type logEntry struct {
 	IP   string    `json:"IP"`
 	Time time.Time `json:"T"`
 
-	QHost  string `json:"QH"`
-	QType  string `json:"QT"`
-	QClass string `json:"QC"`
+	QHost   string `json:"QH"`
+	QType   string `json:"QT"`
+	QClass  string `json:"QC"`
+	RStatus string `json:"RS"`
 
 	Answer   []byte `json:",omitempty"` // sometimes empty answers happen like binerdunt.top or rev2.globalrootservers.net
 	Result   dnsfilter.Result
@@ -147,6 +148,27 @@ func (l *queryLog) Add(question *dns.Msg, answer *dns.Msg, result *dnsfilter.Res
 	entry.QType = dns.Type(q.Qtype).String()
 	entry.QClass = dns.Class(q.Qclass).String()
 
+	switch result.Reason {
+	case dnsfilter.FilteredBlackList:
+		entry.RStatus = "BL"
+	case dnsfilter.NotFilteredWhiteList:
+		entry.RStatus = "WL"
+	case dnsfilter.FilteredSafeBrowsing:
+		entry.RStatus = "SB"
+	case dnsfilter.FilteredParental:
+		entry.RStatus = "P"
+	case dnsfilter.FilteredSafeSearch:
+		entry.RStatus = "SS"
+	case dnsfilter.FilteredBlockedService:
+		entry.RStatus = "SVC"
+	case dnsfilter.ReasonRewrite:
+		entry.RStatus = "RW"
+	default:
+		if result.IsFiltered {
+			entry.RStatus = "F"
+		}
+	}
+
 	l.bufferLock.Lock()
 	l.buffer = append(l.buffer, &entry)
 	needFlush := false
@@ -168,8 +190,23 @@ func (l *queryLog) Add(question *dns.Msg, answer *dns.Msg, result *dnsfilter.Res
 
 // Return TRUE if this entry is needed
 func isNeeded(entry *logEntry, params getDataParams) bool {
-	if params.ResponseStatus == responseStatusFiltered && !entry.Result.IsFiltered {
-		return false
+	if params.ResponseStatus != 0 {
+		st := uint32(0)
+		switch entry.RStatus {
+		case "":
+			//
+		case "WL":
+			st = responseStatusWhitelist
+		case "SB":
+			st = responseStatusSafeBrowsing
+		case "P":
+			st = responseStatusParental
+		default:
+			st = responseStatusFiltered - responseStatusSafeBrowsing - responseStatusParental
+		}
+		if (params.ResponseStatus & st) == 0 {
+			return false
+		}
 	}
 
 	if len(params.QuestionType) != 0 {
@@ -244,22 +281,22 @@ func (l *queryLog) readFromFile(params getDataParams) ([]*logEntry, time.Time, i
 
 // Parameters for getData()
 type getDataParams struct {
-	OlderThan         time.Time          // return entries that are older than this value
-	Domain            string             // filter by domain name in question
-	Client            string             // filter by client IP
-	QuestionType      string             // filter by question type
-	ResponseStatus    responseStatusType // filter by response status
-	StrictMatchDomain bool               // if Domain value must be matched strictly
-	StrictMatchClient bool               // if Client value must be matched strictly
+	OlderThan         time.Time // return entries that are older than this value
+	Domain            string    // filter by domain name in question
+	Client            string    // filter by client IP
+	QuestionType      string    // filter by question type
+	ResponseStatus    uint32    // filter by response status
+	StrictMatchDomain bool      // if Domain value must be matched strictly
+	StrictMatchClient bool      // if Client value must be matched strictly
 }
-
-// Response status
-type responseStatusType int32
 
 // Response status constants
 const (
-	responseStatusAll responseStatusType = iota + 1
-	responseStatusFiltered
+	responseStatusAll          = 0
+	responseStatusWhitelist    = 1
+	responseStatusFiltered     = 0xfe
+	responseStatusSafeBrowsing = 2
+	responseStatusParental     = 4
 )
 
 // Get log entries
@@ -312,7 +349,7 @@ func (l *queryLog) getData(params getDataParams) map[string]interface{} {
 		}
 
 		jsonEntry := map[string]interface{}{
-			"reason":    entry.Result.Reason.String(),
+			"reason":    entry.RStatus,
 			"elapsedMs": strconv.FormatFloat(entry.Elapsed.Seconds()*1000, 'f', -1, 64),
 			"time":      entry.Time.Format(time.RFC3339Nano),
 			"client":    entry.IP,

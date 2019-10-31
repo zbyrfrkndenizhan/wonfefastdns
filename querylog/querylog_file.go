@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/miekg/dns"
 )
@@ -400,9 +399,22 @@ func readJSONValue(s, name string) string {
 
 // nolint (gocyclo)
 func (r *Reader) applySearch(str string) bool {
-	if r.search.ResponseStatus == responseStatusFiltered {
-		boolVal, ok := readJSONBool(str, "IsFiltered")
-		if !ok || !boolVal {
+	if r.search.ResponseStatus != 0 {
+		reason := readJSONValue(str, "RS")
+		st := uint32(0)
+		switch reason {
+		case "":
+			//
+		case "WL":
+			st = responseStatusWhitelist
+		case "SB":
+			st = responseStatusSafeBrowsing
+		case "P":
+			st = responseStatusParental
+		default:
+			st = responseStatusFiltered - responseStatusSafeBrowsing - responseStatusParental
+		}
+		if (r.search.ResponseStatus & st) == 0 {
 			return false
 		}
 	}
@@ -553,7 +565,6 @@ func readJSON(ps *string) (string, string, int32) {
 
 // nolint (gocyclo)
 func decode(ent *logEntry, str string) {
-	var b bool
 	var i int
 	var err error
 	for {
@@ -577,17 +588,13 @@ func decode(ent *logEntry, str string) {
 		case "Answer":
 			ent.Answer, err = base64.StdEncoding.DecodeString(v)
 
-		case "IsFiltered":
-			b, err = strconv.ParseBool(v)
-			ent.Result.IsFiltered = b
+		case "RS":
+			ent.RStatus = v
 		case "Rule":
 			ent.Result.Rule = v
 		case "FilterID":
 			i, err = strconv.Atoi(v)
 			ent.Result.FilterID = int64(i)
-		case "Reason":
-			i, err = strconv.Atoi(v)
-			ent.Result.Reason = dnsfilter.Reason(i)
 
 		case "Upstream":
 			ent.Upstream = v
@@ -596,6 +603,13 @@ func decode(ent *logEntry, str string) {
 			ent.Elapsed = time.Duration(i)
 
 		// pre-v0.99.3 compatibility:
+		case "IsFiltered":
+			// var b bool
+			// b, err = strconv.ParseBool(v)
+			// ent.Result.IsFiltered = b
+		case "Reason":
+			// i, err = strconv.Atoi(v)
+			// ent.Result.Reason = dnsfilter.Reason(i)
 		case "Question":
 			var qstr []byte
 			qstr, err = base64.StdEncoding.DecodeString(v)

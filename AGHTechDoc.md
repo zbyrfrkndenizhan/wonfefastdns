@@ -1113,11 +1113,10 @@ When a new DNS request is received and processed, we store information about thi
 	"QH":"...", // target host name without the last dot
 	"QT":"...", // question type
 	"QC":"...", // question class
-	"Answer":"...",
-	"OrigAnswer":"...",
+	"RS":"" | "BL" | "WL" | "SB" | "P" | "SS" | "SVC" | "RW" | "F", // response status: None | Blocklist | Whitelist | SafeBrowsing | Parental | SafeSearch | BlockedService | Rewrite | Filtered (other)
+	"Answer":"base64 data",
+	"OrigAnswer":"base64 data",
 	"Result":{
-		"IsFiltered":true,
-		"Reason":3,
 		"Rule":"...",
 		"FilterID":1,
 		},
@@ -1150,7 +1149,7 @@ Request:
 	&filter_domain=...
 	&filter_client=...
 	&filter_question_type=A | AAAA
-	&filter_response_status= | filtered
+	&filter_response_status="" | "WL" | "SB" | "P" | "F"
 
 `older_than` setting is used for paging.  UI uses an empty value for `older_than` on the first request and gets the latest log entries.  To get the older entries, UI sets `older_than` to the `oldest` value from the server's response.
 
@@ -1187,7 +1186,7 @@ Response:
 			"host":"doubleclick.net",
 			"type":"AAAA"
 		},
-		"reason":"FilteredBlackList",
+		"reason":"" | "BL" | "WL" | "SB" | "P" | "SS" | "SVC" | "RW" | "F",
 		"rule":"||doubleclick.net^",
 		"service_name": "...", // set if reason=FilteredBlockedService
 		"status":"NOERROR",

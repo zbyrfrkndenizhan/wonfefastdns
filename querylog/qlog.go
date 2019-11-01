@@ -97,15 +97,41 @@ type logEntry struct {
 	IP   string    `json:"IP"`
 	Time time.Time `json:"T"`
 
-	QHost   string `json:"QH"`
-	QType   string `json:"QT"`
-	QClass  string `json:"QC"`
-	RStatus string `json:"RS"`
+	QHost      string `json:"QH"`
+	QType      string `json:"QT"`
+	QClass     string `json:"QC"`
+	RStatus    string `json:"RS,omitempty"`  // response status
+	Rule       string `json:"RUL,omitempty"` // matched filter rule
+	FilterID   uint64 `json:"FID,omitempty"` // matched filter ID
+	BlockedSvc string `json:"SVC,omitempty"` // blocked service name
 
 	Answer   []byte `json:",omitempty"` // sometimes empty answers happen like binerdunt.top or rev2.globalrootservers.net
-	Result   dnsfilter.Result
 	Elapsed  time.Duration
 	Upstream string `json:",omitempty"` // if empty, means it was cached
+}
+
+func reasonToRStatus(reason dnsfilter.Reason, isFiltered bool) string {
+	switch reason {
+	case dnsfilter.FilteredBlackList:
+		return "BL"
+	case dnsfilter.NotFilteredWhiteList:
+		return "WL"
+	case dnsfilter.FilteredSafeBrowsing:
+		return "SB"
+	case dnsfilter.FilteredParental:
+		return "P"
+	case dnsfilter.FilteredSafeSearch:
+		return "SS"
+	case dnsfilter.FilteredBlockedService:
+		return "SVC"
+	case dnsfilter.ReasonRewrite:
+		return "RW"
+	default:
+		if isFiltered {
+			return "F"
+		}
+	}
+	return ""
 }
 
 func (l *queryLog) Add(question *dns.Msg, answer *dns.Msg, result *dnsfilter.Result, elapsed time.Duration, ip net.IP, upstream string) {
@@ -129,44 +155,26 @@ func (l *queryLog) Add(question *dns.Msg, answer *dns.Msg, result *dnsfilter.Res
 		}
 	}
 
-	if result == nil {
-		result = &dnsfilter.Result{}
-	}
-
 	now := time.Now()
 	entry := logEntry{
 		IP:   ip.String(),
 		Time: now,
 
 		Answer:   a,
-		Result:   *result,
 		Elapsed:  elapsed,
 		Upstream: upstream,
 	}
+
 	q := question.Question[0]
 	entry.QHost = strings.ToLower(q.Name[:len(q.Name)-1]) // remove the last dot
 	entry.QType = dns.Type(q.Qtype).String()
 	entry.QClass = dns.Class(q.Qclass).String()
 
-	switch result.Reason {
-	case dnsfilter.FilteredBlackList:
-		entry.RStatus = "BL"
-	case dnsfilter.NotFilteredWhiteList:
-		entry.RStatus = "WL"
-	case dnsfilter.FilteredSafeBrowsing:
-		entry.RStatus = "SB"
-	case dnsfilter.FilteredParental:
-		entry.RStatus = "P"
-	case dnsfilter.FilteredSafeSearch:
-		entry.RStatus = "SS"
-	case dnsfilter.FilteredBlockedService:
-		entry.RStatus = "SVC"
-	case dnsfilter.ReasonRewrite:
-		entry.RStatus = "RW"
-	default:
-		if result.IsFiltered {
-			entry.RStatus = "F"
-		}
+	if result != nil {
+		entry.Rule = result.Rule
+		entry.FilterID = uint64(result.FilterID)
+		entry.BlockedSvc = result.ServiceName
+		entry.RStatus = reasonToRStatus(result.Reason, result.IsFiltered)
 	}
 
 	l.bufferLock.Lock()
@@ -363,13 +371,13 @@ func (l *queryLog) getData(params getDataParams) map[string]interface{} {
 		if a != nil {
 			jsonEntry["status"] = dns.RcodeToString[a.Rcode]
 		}
-		if len(entry.Result.Rule) > 0 {
-			jsonEntry["rule"] = entry.Result.Rule
-			jsonEntry["filterId"] = entry.Result.FilterID
+		if len(entry.Rule) != 0 {
+			jsonEntry["rule"] = entry.Rule
+			jsonEntry["filterId"] = entry.FilterID
 		}
 
-		if len(entry.Result.ServiceName) != 0 {
-			jsonEntry["service_name"] = entry.Result.ServiceName
+		if len(entry.BlockedSvc) != 0 {
+			jsonEntry["service_name"] = entry.BlockedSvc
 		}
 
 		answers := answerToMap(a)

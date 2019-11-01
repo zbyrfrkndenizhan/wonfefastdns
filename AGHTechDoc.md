@@ -1114,12 +1114,11 @@ When a new DNS request is received and processed, we store information about thi
 	"QT":"...", // question type
 	"QC":"...", // question class
 	"RS":"" | "BL" | "WL" | "SB" | "P" | "SS" | "SVC" | "RW" | "F", // response status: None | Blocklist | Whitelist | SafeBrowsing | Parental | SafeSearch | BlockedService | Rewrite | Filtered (other)
+	"RUL":"...", // matched filter rule
+	"FID":1, // matched filter ID
+	"SVC":"...", // blocked service name
 	"Answer":"base64 data",
 	"OrigAnswer":"base64 data",
-	"Result":{
-		"Rule":"...",
-		"FilterID":1,
-		},
 	"Elapsed":12345,
 	"Upstream":"...",
 	}

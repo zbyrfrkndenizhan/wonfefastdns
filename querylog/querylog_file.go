@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/miekg/dns"
 )
@@ -590,11 +591,13 @@ func decode(ent *logEntry, str string) {
 
 		case "RS":
 			ent.RStatus = v
-		case "Rule":
-			ent.Result.Rule = v
-		case "FilterID":
+		case "RUL":
+			ent.Rule = v
+		case "FID":
 			i, err = strconv.Atoi(v)
-			ent.Result.FilterID = int64(i)
+			if i >= 0 {
+				ent.FilterID = uint64(i)
+			}
 
 		case "Upstream":
 			ent.Upstream = v
@@ -603,13 +606,25 @@ func decode(ent *logEntry, str string) {
 			ent.Elapsed = time.Duration(i)
 
 		// pre-v0.99.3 compatibility:
+		case "Rule":
+			ent.Rule = v
 		case "IsFiltered":
-			// var b bool
-			// b, err = strconv.ParseBool(v)
-			// ent.Result.IsFiltered = b
+			var b bool
+			b, err = strconv.ParseBool(v)
+			if b {
+				ent.RStatus = "F"
+			}
 		case "Reason":
-			// i, err = strconv.Atoi(v)
-			// ent.Result.Reason = dnsfilter.Reason(i)
+			i, err = strconv.Atoi(v)
+			s := reasonToRStatus(dnsfilter.Reason(i), false)
+			if len(s) != 0 {
+				ent.RStatus = s
+			}
+		case "FilterID":
+			i, err = strconv.Atoi(v)
+			if i >= 0 {
+				ent.FilterID = uint64(i)
+			}
 		case "Question":
 			var qstr []byte
 			qstr, err = base64.StdEncoding.DecodeString(v)

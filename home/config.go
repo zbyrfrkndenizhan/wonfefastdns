@@ -11,6 +11,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dhcpd"
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
+	"github.com/AdguardTeam/AdGuardHome/mitmproxy"
 	"github.com/AdguardTeam/AdGuardHome/querylog"
 	"github.com/AdguardTeam/AdGuardHome/stats"
 	"github.com/AdguardTeam/golibs/file"
@@ -60,6 +61,8 @@ type configuration struct {
 
 	DNS dnsConfig `yaml:"dns"`
 	TLS tlsConfig `yaml:"tls"`
+
+	MITM mitmproxy.Config `yaml:"mitmproxy"`
 
 	Filters          []filter `yaml:"filters"`
 	WhitelistFilters []filter `yaml:"whitelist_filters"`
@@ -302,6 +305,12 @@ func (c *configuration) write() error {
 		c := dhcpd.ServerConfig{}
 		Context.dhcpServer.WriteDiskConfig(&c)
 		config.DHCP = c
+	}
+
+	if config.mitmProxy != nil {
+		c := mitmproxy.Config{}
+		config.mitmProxy.WriteDiskConfig(&c)
+		config.MITM = c
 	}
 
 	configFile := config.getConfigFilename()

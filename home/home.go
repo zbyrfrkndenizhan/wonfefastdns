@@ -29,6 +29,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dhcpd"
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
+	"github.com/AdguardTeam/AdGuardHome/mitmproxy"
 	"github.com/AdguardTeam/AdGuardHome/querylog"
 	"github.com/AdguardTeam/AdGuardHome/stats"
 	"github.com/AdguardTeam/golibs/log"
@@ -67,6 +68,7 @@ type homeContext struct {
 	auth        *Auth                // HTTP authentication module
 	httpServer  *http.Server         // HTTP module
 	httpsServer HTTPSServer          // HTTPS module
+	mitmProxy   *mitmproxy.MITMProxy
 
 	// Runtime properties
 	// --
@@ -219,10 +221,27 @@ func run(args options) {
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
+
+		if config.MITM.ListenAddr != "" {
+			config.MITM.ConfigModified = onConfigModified
+			config.MITM.HTTPRegister = httpRegister
+			Context.mitmProxy = mitmproxy.New(config.MITM)
+			if Context.mitmProxy == nil {
+				log.Fatal("")
+			}
+		}
+
 		go func() {
 			err := startDNSServer()
 			if err != nil {
 				log.Fatal(err)
+			}
+
+			if config.mitmProxy != nil {
+				err = config.mitmProxy.Start()
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}()
 
@@ -437,10 +456,15 @@ func configureLogger(args options) {
 func cleanup() {
 	log.Info("Stopping AdGuard Home")
 
+	if config.mitmProxy != nil {
+		config.mitmProxy.Close()
+	}
+
 	err := stopDNSServer()
 	if err != nil {
 		log.Error("Couldn't stop DNS server: %s", err)
 	}
+
 	err = stopDHCPServer()
 	if err != nil {
 		log.Error("Couldn't stop DHCP server: %s", err)

@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/AdguardTeam/dnsproxy v0.23.7
 	github.com/AdguardTeam/golibs v0.3.0
+	github.com/AdguardTeam/gomitmproxy v0.1.2
 	github.com/AdguardTeam/urlfilter v0.9.1
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/etcd-io/bbolt v1.3.3

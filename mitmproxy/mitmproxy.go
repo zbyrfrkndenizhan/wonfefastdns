@@ -4,11 +4,15 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/AdguardTeam/golibs/jsonutil"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/AdguardTeam/gomitmproxy/mitm"
 	"github.com/AdguardTeam/urlfilter/proxy"
@@ -16,8 +20,9 @@ import (
 
 // MITMProxy - MITM proxy structure
 type MITMProxy struct {
-	proxy *proxy.Server
-	conf  Config
+	proxy    *proxy.Server
+	conf     Config
+	confLock sync.Mutex
 }
 
 // Config - module configuration
@@ -41,7 +46,9 @@ type Config struct {
 func New(conf Config) *MITMProxy {
 	p := MITMProxy{}
 	p.conf = conf
-	if !p.create() {
+	err := p.create()
+	if err != nil {
+		log.Error("%s", err)
 		return nil
 	}
 	if p.conf.HTTPRegister != nil {
@@ -54,6 +61,8 @@ func New(conf Config) *MITMProxy {
 func (p *MITMProxy) Close() {
 	if p.proxy != nil {
 		p.proxy.Close()
+		p.proxy = nil
+		log.Debug("MITM: Closed proxy")
 	}
 }
 
@@ -67,33 +76,35 @@ func (p *MITMProxy) Start() error {
 	if !p.conf.Enabled {
 		return nil
 	}
-	return p.proxy.Start()
+	err := p.proxy.Start()
+	if err != nil {
+		return err
+	}
+	log.Debug("MITM: Running...")
+	return nil
 }
 
 // Create a gomitmproxy object
-func (p *MITMProxy) create() bool {
+func (p *MITMProxy) create() error {
 	if !p.conf.Enabled {
-		return true
+		return nil
 	}
 
 	c := proxy.Config{}
 	addr, port, err := net.SplitHostPort(p.conf.ListenAddr)
 	if err != nil {
-		log.Error("net.SplitHostPort: %s", err)
-		return false
+		return fmt.Errorf("net.SplitHostPort: %s", err)
 	}
 
 	c.CompressContentScript = true
 	c.ProxyConfig.ListenAddr = &net.TCPAddr{}
 	c.ProxyConfig.ListenAddr.IP = net.ParseIP(addr)
 	if c.ProxyConfig.ListenAddr.IP == nil {
-		log.Error("Invalid IP: %s", addr)
-		return false
+		return fmt.Errorf("Invalid IP: %s", addr)
 	}
 	c.ProxyConfig.ListenAddr.Port, err = strconv.Atoi(port)
 	if c.ProxyConfig.ListenAddr.IP == nil {
-		log.Error("Invalid port number: %s", port)
-		return false
+		return fmt.Errorf("Invalid port number: %s", port)
 	}
 
 	c.ProxyConfig.Username = p.conf.UserName
@@ -102,23 +113,23 @@ func (p *MITMProxy) create() bool {
 	if p.conf.TLSCertPath != "" {
 		tlsCert, err := tls.LoadX509KeyPair(p.conf.TLSCertPath, p.conf.TLSKeyPath)
 		if err != nil {
-			log.Fatalf("failed to load root CA: %v", err)
+			return fmt.Errorf("failed to load root CA: %v", err)
 		}
 		privateKey := tlsCert.PrivateKey.(*rsa.PrivateKey)
 
 		x509c, err := x509.ParseCertificate(tlsCert.Certificate[0])
 		if err != nil {
-			log.Fatalf("invalid certificate: %v", err)
+			return fmt.Errorf("invalid certificate: %v", err)
 		}
 		mitmConfig, err := mitm.NewConfig(x509c, privateKey, nil)
 		if err != nil {
-			log.Fatalf("failed to create MITM config: %v", err)
+			return fmt.Errorf("failed to create MITM config: %v", err)
 		}
 		mitmConfig.SetValidity(time.Hour * 24 * 7) // generate certs valid for 7 days
 		mitmConfig.SetOrganization("AdGuard")      // cert organization
 		cert, err := mitmConfig.GetOrCreateCert(p.conf.HTTPSHostname)
 		if err != nil {
-			log.Fatalf("failed to generate HTTPS proxy certificate for %s: %v", p.conf.HTTPSHostname, err)
+			return fmt.Errorf("failed to generate HTTPS proxy certificate for %s: %v", p.conf.HTTPSHostname, err)
 		}
 		c.ProxyConfig.TLSConfig.Certificates = []tls.Certificate{*cert}
 		c.ProxyConfig.TLSConfig.ServerName = p.conf.HTTPSHostname
@@ -129,8 +140,69 @@ func (p *MITMProxy) create() bool {
 
 	p.proxy, err = proxy.NewServer(c)
 	if err != nil {
-		log.Error("proxy.NewServer: %s", err)
-		return false
+		return fmt.Errorf("proxy.NewServer: %s", err)
 	}
-	return true
+	return nil
+}
+
+type mitmConfigJSON struct {
+	Enabled    bool   `json:"enabled"`
+	ListenAddr string `json:"listen_address"`
+	ListenPort int    `json:"listen_port"`
+	UserName   string `json:"auth_username"`
+	Password   string `json:"auth_password"`
+}
+
+func httpError(r *http.Request, w http.ResponseWriter, code int, format string, args ...interface{}) {
+	text := fmt.Sprintf(format, args...)
+	log.Info("MITM: %s %s: %s", r.Method, r.URL, text)
+	http.Error(w, text, code)
+}
+
+func (p *MITMProxy) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	resp := mitmConfigJSON{}
+	p.confLock.Lock()
+	resp.Enabled = p.conf.Enabled
+	host, port, _ := net.SplitHostPort(p.conf.ListenAddr)
+	resp.ListenAddr = host
+	resp.ListenPort, _ = strconv.Atoi(port)
+	resp.UserName = p.conf.UserName
+	resp.Password = p.conf.Password
+	p.confLock.Unlock()
+
+	js, err := json.Marshal(resp)
+	if err != nil {
+		httpError(r, w, http.StatusInternalServerError, "json.Marshal: %s", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(js)
+}
+
+func (p *MITMProxy) handleSetConfig(w http.ResponseWriter, r *http.Request) {
+	req := mitmConfigJSON{}
+	_, err := jsonutil.DecodeObject(&req, r.Body)
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+	p.confLock.Lock()
+	p.conf.Enabled = req.Enabled
+	p.conf.ListenAddr = net.JoinHostPort(req.ListenAddr, strconv.Itoa(req.ListenPort))
+	p.conf.UserName = req.UserName
+	p.conf.Password = req.Password
+	p.confLock.Unlock()
+	p.conf.ConfigModified()
+
+	p.Close()
+	err = p.create()
+	if err != nil {
+		httpError(r, w, http.StatusInternalServerError, "%s", err)
+		return
+	}
+}
+
+func (p *MITMProxy) initWeb() {
+	p.conf.HTTPRegister("GET", "/control/proxy_info", p.handleGetConfig)
+	p.conf.HTTPRegister("POST", "/control/proxy_config", p.handleSetConfig)
 }

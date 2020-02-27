@@ -60,6 +60,9 @@ Contents:
 	* API: Set URL parameters
 	* API: Delete URL
 	* API: Domain Check
+* MITM Proxy
+	* API: Get Proxy settings
+	* API: Set Proxy settings
 * Log-in page
 	* API: Log in
 	* API: Log out
@@ -1490,6 +1493,46 @@ Response:
 	"cname": "...",
 	"ip_addrs": ["1.2.3.4", ...],
 	}
+
+
+## MITM Proxy
+
+### API: Get Proxy settings
+
+Request:
+
+	GET /control/proxy_info
+
+Response:
+
+	200 OK
+
+	{
+		"enabled": true|false
+		"listen_address": "ip"
+		"listen_port": 12345
+		"auth_username": ""
+		"auth_password": ""
+	}
+
+
+### API: Set Proxy settings
+
+Request:
+
+	POST /control/proxy_config
+
+	{
+		"enabled": true|false
+		"listen_address": "ip"
+		"listen_port": 12345
+		"auth_username": ""
+		"auth_password": ""
+	}
+
+Response:
+
+	200 OK
 
 
 ## Log-in page

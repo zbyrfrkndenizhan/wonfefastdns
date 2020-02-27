@@ -237,8 +237,8 @@ func run(args options) {
 				log.Fatal(err)
 			}
 
-			if config.mitmProxy != nil {
-				err = config.mitmProxy.Start()
+			if Context.mitmProxy != nil {
+				err = Context.mitmProxy.Start()
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -456,8 +456,9 @@ func configureLogger(args options) {
 func cleanup() {
 	log.Info("Stopping AdGuard Home")
 
-	if config.mitmProxy != nil {
-		config.mitmProxy.Close()
+	if Context.mitmProxy != nil {
+		Context.mitmProxy.Close()
+		Context.mitmProxy = nil
 	}
 
 	err := stopDNSServer()

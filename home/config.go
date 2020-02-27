@@ -307,9 +307,9 @@ func (c *configuration) write() error {
 		config.DHCP = c
 	}
 
-	if config.mitmProxy != nil {
+	if Context.mitmProxy != nil {
 		c := mitmproxy.Config{}
-		config.mitmProxy.WriteDiskConfig(&c)
+		Context.mitmProxy.WriteDiskConfig(&c)
 		config.MITM = c
 	}
 

@@ -103,7 +103,7 @@ func (p *MITMProxy) create() error {
 		return fmt.Errorf("Invalid IP: %s", addr)
 	}
 	c.ProxyConfig.ListenAddr.Port, err = strconv.Atoi(port)
-	if c.ProxyConfig.ListenAddr.IP == nil {
+	if c.ProxyConfig.ListenAddr.Port < 0 || c.ProxyConfig.ListenAddr.Port > 0xffff || err != nil {
 		return fmt.Errorf("Invalid port number: %s", port)
 	}
 

@@ -1497,6 +1497,15 @@ Response:
 
 ## MITM Proxy
 
+	Browser <-(HTTP)-> AGH Proxy <-(HTTP)-> Internet Server
+
+HTTPS MITM:
+
+	1. Browser  --(handshake/sessionA)->  AGH Proxy  --(handshake/sessionB)->    Internet Server
+	2. Browser  <-(cert/AGH)--            AGH Proxy  <-(cert/original-issuer)--  Internet Server
+	3. Browser  <-(HTTP/sessionA)->       AGH Proxy  <-(HTTP/sessionB)->         Internet Server
+
+
 ### API: Get Proxy settings
 
 Request:

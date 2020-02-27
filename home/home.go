@@ -223,6 +223,9 @@ func run(args options) {
 		}
 
 		if config.MITM.ListenAddr != "" {
+			// config.MITM.HTTPSHostname =
+			// config.MITM.TLSCertData =
+			// config.MITM.TLSKeyData =
 			config.MITM.ConfigModified = onConfigModified
 			config.MITM.HTTPRegister = httpRegister
 			Context.mitmProxy = mitmproxy.New(config.MITM)

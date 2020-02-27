@@ -14,6 +14,7 @@ import (
 
 	"github.com/AdguardTeam/golibs/jsonutil"
 	"github.com/AdguardTeam/golibs/log"
+	"github.com/AdguardTeam/gomitmproxy"
 	"github.com/AdguardTeam/gomitmproxy/mitm"
 	"github.com/AdguardTeam/urlfilter/proxy"
 )
@@ -27,13 +28,15 @@ type MITMProxy struct {
 
 // Config - module configuration
 type Config struct {
-	Enabled       bool   `yaml:"enabled"`
-	ListenAddr    string `yaml:"listen_address"`
-	UserName      string `yaml:"auth_username"`
-	Password      string `yaml:"auth_password"`
-	HTTPSHostname string `yaml:"https_hostname"`
-	TLSCertPath   string `yaml:"tls_cert_path"`
-	TLSKeyPath    string `yaml:"tls_key_path"`
+	Enabled    bool   `yaml:"enabled"`
+	ListenAddr string `yaml:"listen_address"`
+	UserName   string `yaml:"auth_username"`
+	Password   string `yaml:"auth_password"`
+
+	// TLS:
+	HTTPSHostname string `yaml:"-"`
+	TLSCertData   []byte `yaml:"-"`
+	TLSKeyData    []byte `yaml:"-"`
 
 	// Called when the configuration is changed by HTTP request
 	ConfigModified func() `yaml:"-"`
@@ -68,7 +71,9 @@ func (p *MITMProxy) Close() {
 
 // WriteDiskConfig - write configuration on disk
 func (p *MITMProxy) WriteDiskConfig(c *Config) {
+	p.confLock.Lock()
 	*c = p.conf
+	p.confLock.Unlock()
 }
 
 // Start - start proxy server
@@ -110,31 +115,11 @@ func (p *MITMProxy) create() error {
 	c.ProxyConfig.Username = p.conf.UserName
 	c.ProxyConfig.Password = p.conf.Password
 
-	if p.conf.TLSCertPath != "" {
-		tlsCert, err := tls.LoadX509KeyPair(p.conf.TLSCertPath, p.conf.TLSKeyPath)
+	if len(p.conf.TLSCertData) != 0 {
+		err := p.prepareTLSConf(&c.ProxyConfig)
 		if err != nil {
-			return fmt.Errorf("failed to load root CA: %v", err)
+			return err
 		}
-		privateKey := tlsCert.PrivateKey.(*rsa.PrivateKey)
-
-		x509c, err := x509.ParseCertificate(tlsCert.Certificate[0])
-		if err != nil {
-			return fmt.Errorf("invalid certificate: %v", err)
-		}
-		mitmConfig, err := mitm.NewConfig(x509c, privateKey, nil)
-		if err != nil {
-			return fmt.Errorf("failed to create MITM config: %v", err)
-		}
-		mitmConfig.SetValidity(time.Hour * 24 * 7) // generate certs valid for 7 days
-		mitmConfig.SetOrganization("AdGuard")      // cert organization
-		cert, err := mitmConfig.GetOrCreateCert(p.conf.HTTPSHostname)
-		if err != nil {
-			return fmt.Errorf("failed to generate HTTPS proxy certificate for %s: %v", p.conf.HTTPSHostname, err)
-		}
-		c.ProxyConfig.TLSConfig.Certificates = []tls.Certificate{*cert}
-		c.ProxyConfig.TLSConfig.ServerName = p.conf.HTTPSHostname
-		c.ProxyConfig.MITMConfig = mitmConfig
-		// c.ProxyConfig.MITMExceptions
 	}
 	// c.ProxyConfig.APIHost
 
@@ -142,6 +127,37 @@ func (p *MITMProxy) create() error {
 	if err != nil {
 		return fmt.Errorf("proxy.NewServer: %s", err)
 	}
+	return nil
+}
+
+func (p *MITMProxy) prepareTLSConf(pc *gomitmproxy.Config) error {
+	tlsCert, err := tls.X509KeyPair(p.conf.TLSCertData, p.conf.TLSKeyData)
+	if err != nil {
+		return fmt.Errorf("failed to load root CA: %v", err)
+	}
+	privateKey := tlsCert.PrivateKey.(*rsa.PrivateKey)
+
+	x509c, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return fmt.Errorf("invalid certificate: %v", err)
+	}
+
+	mitmConfig, err := mitm.NewConfig(x509c, privateKey, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create MITM config: %v", err)
+	}
+
+	mitmConfig.SetValidity(time.Hour * 24 * 7) // generate certs valid for 7 days
+	mitmConfig.SetOrganization("AdGuard")      // cert organization
+	cert, err := mitmConfig.GetOrCreateCert(p.conf.HTTPSHostname)
+	if err != nil {
+		return fmt.Errorf("failed to generate HTTPS proxy certificate for %s: %v", p.conf.HTTPSHostname, err)
+	}
+
+	pc.TLSConfig.Certificates = []tls.Certificate{*cert}
+	pc.TLSConfig.ServerName = p.conf.HTTPSHostname
+	pc.MITMConfig = mitmConfig
+	// pc.MITMExceptions
 	return nil
 }
 

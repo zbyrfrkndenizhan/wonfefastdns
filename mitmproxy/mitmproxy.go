@@ -33,6 +33,8 @@ type Config struct {
 	UserName   string `yaml:"auth_username"`
 	Password   string `yaml:"auth_password"`
 
+	FilterPaths []string `yaml:"-"`
+
 	// TLS:
 	HTTPSHostname string `yaml:"-"`
 	TLSCertData   []byte `yaml:"-"`
@@ -122,6 +124,10 @@ func (p *MITMProxy) create() error {
 		}
 	}
 	// c.ProxyConfig.APIHost
+
+	for i, path := range p.conf.FilterPaths {
+		c.FiltersPaths[i] = path
+	}
 
 	p.proxy, err = proxy.NewServer(c)
 	if err != nil {

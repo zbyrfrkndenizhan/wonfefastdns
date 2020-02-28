@@ -222,7 +222,14 @@ func run(args options) {
 			log.Fatalf("%s", err)
 		}
 
-		if config.MITM.ListenAddr != "" {
+		if config.MITM.Enabled {
+			for _, f := range config.ProxyFilters {
+				if !f.Enabled {
+					continue
+				}
+				path := f.Path()
+				config.MITM.FilterPaths = append(config.MITM.FilterPaths, path)
+			}
 			// config.MITM.HTTPSHostname =
 			// config.MITM.TLSCertData =
 			// config.MITM.TLSKeyData =

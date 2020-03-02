@@ -66,7 +66,6 @@ type configuration struct {
 
 	Filters          []filter `yaml:"filters"`
 	WhitelistFilters []filter `yaml:"whitelist_filters"`
-	ProxyFilters     []filter `yaml:"proxy_filters"`
 	UserRules        []string `yaml:"user_rules"`
 
 	DHCP dhcpd.ServerConfig `yaml:"dhcp"`

@@ -6,12 +6,15 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/AdguardTeam/golibs/file"
 	"github.com/AdguardTeam/golibs/jsonutil"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/AdguardTeam/gomitmproxy"
@@ -33,18 +36,116 @@ type Config struct {
 	UserName   string `yaml:"auth_username"`
 	Password   string `yaml:"auth_password"`
 
-	FilterPaths []string `yaml:"-"`
+	FilterDir string   `yaml:"-"`
+	Filters   []filter `yaml:"proxy_filters"`
 
 	// TLS:
 	HTTPSHostname string `yaml:"-"`
 	TLSCertData   []byte `yaml:"-"`
 	TLSKeyData    []byte `yaml:"-"`
 
+	HTTPClient *http.Client
+
 	// Called when the configuration is changed by HTTP request
 	ConfigModified func() `yaml:"-"`
 
 	// Register an HTTP handler
 	HTTPRegister func(string, string, func(http.ResponseWriter, *http.Request)) `yaml:"-"`
+}
+
+type filter struct {
+	ID          uint64    `yaml:"-"`
+	Enabled     bool      `yaml:"enabled"`
+	Name        string    `yaml:"name"`
+	URL         string    `yaml:"url"`
+	RuleCount   uint64    `yaml:"-"`
+	LastUpdated time.Time `yaml:"-"`
+}
+
+func (p *MITMProxy) filterPath(f filter) string {
+	return filepath.Join(p.conf.FilterDir, fmt.Sprintf("%d.txt", f.ID))
+}
+
+func (p *MITMProxy) nextFilterID() uint64 {
+	return uint64(time.Now().Unix())
+}
+
+func download(client *http.Client, url string) ([]byte, error) {
+	resp, err := client.Get(url)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		err := fmt.Errorf("status code: %d", resp.StatusCode)
+		return nil, err
+	}
+
+	return ioutil.ReadAll(resp.Body)
+}
+
+func parseFilter(f *filter, body []byte) error {
+	// f.RuleCount=
+	return nil
+}
+
+func (p *MITMProxy) downloadFilter(f *filter) error {
+	log.Debug("MITM: Downloading filter from %s", f.URL)
+
+	body, err := download(p.conf.HTTPClient, f.URL)
+	if err != nil {
+		err := fmt.Errorf("MITM: Couldn't download filter from %s: %s", f.URL, err)
+		return err
+	}
+
+	err = parseFilter(f, body)
+	if err != nil {
+		return err
+	}
+	err = file.SafeWrite()
+	if err != nil {
+		return err
+	}
+	// f.LastUpdated=
+	return nil
+}
+
+func (p *MITMProxy) addFilter(nf filter) error {
+	for _, f := range p.conf.Filters {
+		if f.Name == nf.Name || f.URL == nf.URL {
+			return fmt.Errorf("filter with this Name or URL already exists")
+		}
+	}
+
+	nf.ID = p.nextFilterID()
+	nf.Enabled = true
+	err := p.downloadFilter(&nf)
+	if err != nil {
+		log.Debug("%s", err)
+		return err
+	}
+	p.conf.Filters = append(p.conf.Filters, nf)
+	return nil
+}
+
+func (p *MITMProxy) deleteFilter(url string) bool {
+	nf := []filter{}
+	found := false
+	for _, f := range p.conf.Filters {
+		if f.URL == url {
+			found = true
+			continue
+		}
+		nf = append(nf, f)
+	}
+	if !found {
+		return false
+	}
+	p.conf.Filters = nf
+	return true
 }
 
 // New - create a new instance of the query log
@@ -125,8 +226,11 @@ func (p *MITMProxy) create() error {
 	}
 	// c.ProxyConfig.APIHost
 
-	for i, path := range p.conf.FilterPaths {
-		c.FiltersPaths[i] = path
+	for i, f := range p.conf.Filters {
+		if !f.Enabled {
+			continue
+		}
+		c.FiltersPaths[i] = p.filterPath(f)
 	}
 
 	p.proxy, err = proxy.NewServer(c)
@@ -224,7 +328,95 @@ func (p *MITMProxy) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (p *MITMProxy) handleFilterStatus(w http.ResponseWriter, r *http.Request) {
+	type filterJSON struct {
+		Enabled     bool      `json:"enabled"`
+		Name        string    `json:"name"`
+		URL         string    `json:"url"`
+		RuleCount   uint64    `json:"rules_count"`
+		LastUpdated time.Time `json:"last_updated"`
+	}
+	type Resp struct {
+		Filters []filterJSON `json:"filters"`
+	}
+	resp := Resp{}
+
+	p.confLock.Lock()
+	for _, f := range p.conf.Filters {
+		fj := filterJSON{
+			Enabled:     f.Enabled,
+			Name:        f.Name,
+			URL:         f.URL,
+			RuleCount:   f.RuleCount,
+			LastUpdated: f.LastUpdated,
+		}
+		resp.Filters = append(resp.Filters, fj)
+	}
+	p.confLock.Unlock()
+
+	js, err := json.Marshal(resp)
+	if err != nil {
+		httpError(r, w, http.StatusInternalServerError, "json.Marshal: %s", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(js)
+}
+
+func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
+	type Req struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	}
+	req := Req{}
+	_, err := jsonutil.DecodeObject(&req, r.Body)
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	f := filter{
+		Name: req.Name,
+		URL:  req.URL,
+	}
+	p.confLock.Lock()
+	err = p.addFilter(f)
+	p.confLock.Unlock()
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "addFilter: %s", err)
+		return
+	}
+
+	p.conf.ConfigModified()
+}
+
+func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
+	type Req struct {
+		URL string `json:"url"`
+	}
+	req := Req{}
+	_, err := jsonutil.DecodeObject(&req, r.Body)
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	p.confLock.Lock()
+	result := p.deleteFilter(req.URL)
+	p.confLock.Unlock()
+	if !result {
+		httpError(r, w, http.StatusInternalServerError, "No filter with such URL")
+		return
+	}
+
+	p.conf.ConfigModified()
+}
+
 func (p *MITMProxy) initWeb() {
 	p.conf.HTTPRegister("GET", "/control/proxy_info", p.handleGetConfig)
 	p.conf.HTTPRegister("POST", "/control/proxy_config", p.handleSetConfig)
+
+	p.conf.HTTPRegister("GET", "/control/proxy_filter/status", p.handleFilterStatus)
+	p.conf.HTTPRegister("POST", "/control/proxy_filter/add", p.handleFilterAdd)
+	p.conf.HTTPRegister("POST", "/control/proxy_filter/remove", p.handleFilterRemove)
 }

@@ -29,11 +29,9 @@ var (
 func initFiltering() {
 	loadFilters(config.Filters)
 	loadFilters(config.WhitelistFilters)
-	loadFilters(config.ProxyFilters)
 	deduplicateFilters()
 	updateUniqueFilterID(config.Filters)
 	updateUniqueFilterID(config.WhitelistFilters)
-	updateUniqueFilterID(config.ProxyFilters)
 }
 
 func startFiltering() {

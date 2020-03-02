@@ -223,16 +223,11 @@ func run(args options) {
 		}
 
 		if config.MITM.Enabled {
-			for _, f := range config.ProxyFilters {
-				if !f.Enabled {
-					continue
-				}
-				path := f.Path()
-				config.MITM.FilterPaths = append(config.MITM.FilterPaths, path)
-			}
 			// config.MITM.HTTPSHostname =
 			// config.MITM.TLSCertData =
 			// config.MITM.TLSKeyData =
+			config.MITM.HTTPClient = Context.client
+			config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
 			config.MITM.ConfigModified = onConfigModified
 			config.MITM.HTTPRegister = httpRegister
 			Context.mitmProxy = mitmproxy.New(config.MITM)

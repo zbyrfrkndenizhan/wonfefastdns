@@ -51,18 +51,21 @@ Contents:
 	* API: Get query log
 	* API: Set querylog parameters
 	* API: Get querylog parameters
-* Filtering
+* DNS Filtering
 	* Filters update mechanism
 	* API: Get filtering parameters
 	* API: Set filtering parameters
 	* API: Refresh filters
 	* API: Add Filter
-	* API: Set URL parameters
-	* API: Delete URL
+	* API: Set Filter parameters
+	* API: Delete Filter
 	* API: Domain Check
-* MITM Proxy
+* HTTP Proxy
 	* API: Get Proxy settings
 	* API: Set Proxy settings
+	* API: Get Proxy filtering parameters
+	* API: Add Proxy Filter
+	* API: Delete Proxy Filter
 * Log-in page
 	* API: Log in
 	* API: Log out
@@ -1311,7 +1314,7 @@ Response:
 	}
 
 
-## Filtering
+## DNS Filtering
 
 ![](doc/agh-filtering.png)
 
@@ -1434,7 +1437,7 @@ Response:
 	200 OK
 
 
-### API: Set URL parameters
+### API: Set Filter parameters
 
 Request:
 
@@ -1455,7 +1458,7 @@ Response:
 	200 OK
 
 
-### API: Delete URL
+### API: Delete Filter
 
 Request:
 
@@ -1495,7 +1498,7 @@ Response:
 	}
 
 
-## MITM Proxy
+## HTTP Proxy
 
 	Browser <-(HTTP)-> AGH Proxy <-(HTTP)-> Internet Server
 
@@ -1537,6 +1540,62 @@ Request:
 		"listen_port": 12345
 		"auth_username": ""
 		"auth_password": ""
+	}
+
+Response:
+
+	200 OK
+
+
+### API: Get Proxy filtering parameters
+
+Request:
+
+	GET /control/proxy_filter/status
+
+Response:
+
+	200 OK
+
+	{
+	"filters":[
+		{
+		"id":1
+		"enabled":true,
+		"url":"https://...",
+		"name":"...",
+		"rules_count":1234,
+		"last_updated":"2019-09-04T18:29:30+00:00",
+		}
+		...
+	],
+	}
+
+
+### API: Add Proxy Filter
+
+Request:
+
+	POST /control/proxy_filter/add
+
+	{
+		"name": "..."
+		"url": "..."
+	}
+
+Response:
+
+	200 OK
+
+
+### API: Delete Proxy Filter
+
+Request:
+
+	POST /control/proxy_filter/remove
+
+	{
+	"url": "..."
 	}
 
 Response:

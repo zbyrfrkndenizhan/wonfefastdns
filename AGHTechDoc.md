@@ -64,6 +64,7 @@ Contents:
 	* API: Log in
 	* API: Log out
 	* API: Get current user info
+* Replace dnsmasq on OpenWRT
 
 
 ## Relations between subsystems
@@ -1594,3 +1595,66 @@ Response:
 	}
 
 If no client is configured then authentication is disabled and server sends an empty response.
+
+
+## Replace dnsmasq on OpenWRT
+
+`/etc/init.d/dnsmasq` script creates a dnsmasq.conf file and then starts dnsmasq.
+To replace dnsmasq we have to read system configuration files and update (create new, if necessary) our .yaml file accordingly.
+
+If started as:
+
+	./AdGuardHome --auto-config
+
+* Read `/etc/config/network`:
+
+		config interface 'lan'
+			option netmask '255.255.255.0'
+			option ipaddr '192.168.8.1'
+
+* Read `/etc/config/dhcp`:
+
+		config dhcp 'lan'
+			option start '100'
+			option limit '150'
+			option leasetime '12h'
+
+* Write this yaml configuration:
+
+		dhcp:
+			enabled: true
+			interface_name: "br-lan"
+			gateway_ip: "192.168.8.1"
+			subnet_mask: "255.255.255.0"
+			range_start: "192.168.8.100"
+			range_end: "192.168.8.249"
+			lease_duration: 86400
+			icmp_timeout_msec: 1000
+
+* Read `/etc/config/dhcp`:
+
+		config host '123412341234'
+			option mac '12:34:12:34:12:34'
+			option ip '192.168.8.2'
+			option name 'hostname'
+
+* Add a static lease to leases.db:
+
+		12:34:12:34:12:34 | 192.168.8.2 | hostname
+
+* Read `/etc/resolv.conf`:
+
+		nameserver <IP1>
+		nameserver <IP2>
+
+* Write this yaml configuration:
+
+		dns:
+			bootstrap_dns:
+			- IP1
+			- IP2
+
+And service script starts AGH like this:
+
+	.../AdGuardHome --auto-config
+	.../AdGuardHome

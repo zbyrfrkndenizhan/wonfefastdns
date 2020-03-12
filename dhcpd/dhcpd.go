@@ -139,6 +139,11 @@ func (s *Server) Init(config ServerConfig) error {
 	return nil
 }
 
+// Save - save leases in DB
+func (s *Server) Save() {
+	s.dbStore()
+}
+
 // SetOnLeaseChanged - set callback
 func (s *Server) SetOnLeaseChanged(onLeaseChanged onLeaseChangedT) {
 	s.onLeaseChanged = onLeaseChanged
@@ -608,6 +613,11 @@ func (s *Server) handleDecline(p dhcp4.Packet, options dhcp4.Options) dhcp4.Pack
 
 // AddStaticLease adds a static lease (thread-safe)
 func (s *Server) AddStaticLease(l Lease) error {
+	return s.AddStaticLeaseWithFlags(l, true)
+}
+
+// AddStaticLeaseWithFlags - add a static lease (thread-safe)
+func (s *Server) AddStaticLeaseWithFlags(l Lease, flush bool) error {
 	if len(l.IP) != 4 {
 		return fmt.Errorf("Invalid IP")
 	}
@@ -627,7 +637,9 @@ func (s *Server) AddStaticLease(l Lease) error {
 	}
 	s.leases = append(s.leases, &l)
 	s.reserveIP(l.IP, l.HWAddr)
-	s.dbStore()
+	if flush {
+		s.dbStore()
+	}
 	s.leasesLock.Unlock()
 	s.notify(LeaseChangedAddedStatic)
 	return nil

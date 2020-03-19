@@ -120,6 +120,8 @@ func (oc *openwrtConfig) readConf(data []byte, section string, iface string) {
 		}
 	}
 }
+
+// Parse static DHCP leases from system configuration data
 func (oc *openwrtConfig) readConfDHCPStatic(data []byte) error {
 	state := 0
 	sr := strings.NewReader(string(data))
@@ -254,7 +256,8 @@ func (oc *openwrtConfig) prepareOutput() error {
 	return nil
 }
 
-func (oc *openwrtConfig) Start() error {
+// Process - read and process system configuration data
+func (oc *openwrtConfig) Process() error {
 	data, err := ioutil.ReadFile("/etc/config/network")
 	if err != nil {
 		return err
@@ -272,7 +275,7 @@ func (oc *openwrtConfig) Start() error {
 		return err
 	}
 
-	oc.readConfDHCPStatic(data)
+	err = oc.readConfDHCPStatic(data)
 	if err != nil {
 		return err
 	}
@@ -283,7 +286,7 @@ func (oc *openwrtConfig) Start() error {
 // Read system configuration files and write our configuration files
 func autoConfig(configFn string) error {
 	oc := openwrtConfig{}
-	err := oc.Start()
+	err := oc.Process()
 	if err != nil {
 		return err
 	}
@@ -334,7 +337,10 @@ func autoConfig(configFn string) error {
 			IP:       ocl.IP.To4(),
 			Hostname: ocl.Hostname,
 		}
-		ds.AddStaticLeaseWithFlags(l, false)
+		err = ds.AddStaticLeaseWithFlags(l, false)
+		if err != nil {
+			continue
+		}
 		log.Debug("Static DHCP lease: %s -> %s (%s)",
 			l.HWAddr, l.IP, l.Hostname)
 	}

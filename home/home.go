@@ -456,7 +456,8 @@ type options struct {
 	pidFile        string // File name to save PID to
 	checkConfig    bool   // Check configuration and exit
 	disableUpdate  bool   // If set, don't check for updates
-	hasAutoConfig  bool   // 'auto-config' argument is specified
+
+	hasImportOpenwrtConfig bool // 'import-openwrt-config' argument is specified
 
 	// service control action (see service.ControlAction array + "status" command)
 	serviceControlAction string
@@ -496,8 +497,8 @@ func loadOptions() options {
 		{"pidfile", "", "Path to a file where PID is stored", func(value string) { o.pidFile = value }, nil},
 		{"check-config", "", "Check configuration and exit", nil, func() { o.checkConfig = true }},
 		{"no-check-update", "", "Don't check for updates", nil, func() { o.disableUpdate = true }},
-		{"auto-config", "", "Create or update YAML configuration file from OpenWRT system configuration", nil, func() {
-			o.hasAutoConfig = true
+		{"import-openwrt-config", "", "Create or update YAML configuration file from OpenWRT system configuration", nil, func() {
+			o.hasImportOpenwrtConfig = true
 		}},
 		{"verbose", "v", "Enable verbose output", nil, func() { o.verbose = true }},
 		{"version", "", "Show the version and exit", nil, func() {
@@ -555,8 +556,8 @@ func loadOptions() options {
 		log.SetLevel(log.DEBUG)
 	}
 
-	if o.hasAutoConfig {
-		err := autoConfig(o.configFilename)
+	if o.hasImportOpenwrtConfig {
+		err := importOpenwrtConfig(o.configFilename)
 		if err != nil {
 			log.Fatalf("%s", err)
 		}

@@ -1604,7 +1604,7 @@ To replace dnsmasq we have to read system configuration files and update (create
 
 If started as:
 
-	./AdGuardHome --auto-config
+	./AdGuardHome --import-openwrt-config
 
 * Read `/etc/config/network`:
 
@@ -1656,5 +1656,5 @@ If started as:
 
 And service script starts AGH like this:
 
-	.../AdGuardHome --auto-config
+	.../AdGuardHome --import-openwrt-config
 	.../AdGuardHome

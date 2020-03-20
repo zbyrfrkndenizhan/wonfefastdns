@@ -284,7 +284,7 @@ func (oc *openwrtConfig) Process() error {
 }
 
 // Read system configuration files and write our configuration files
-func autoConfig(configFn string) error {
+func importOpenwrtConfig(configFn string) error {
 	oc := openwrtConfig{}
 	err := oc.Process()
 	if err != nil {

@@ -47,6 +47,32 @@ nameserver 1.2.3.4`)
 	assert.Equal(t, "abab::1234", oc.bsDNS[0])
 	assert.Equal(t, "1.2.3.4", oc.bsDNS[1])
 
+	tmp := oc.ipaddr
+	oc.dhcpStart = "invalid" // not an IP
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.ipaddr = tmp
+
+	tmp = oc.dhcpStart
+	oc.dhcpStart = "invalid" // not an integer
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.dhcpStart = "256" //byte overflow
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.dhcpStart = tmp
+
+	tmp = oc.dhcpLimit
+	oc.dhcpLimit = "invalid" // not an integer
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.dhcpLimit = "200" //byte overflow
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.dhcpLimit = tmp
+
+	tmp = oc.dhcpLeasetime
+	oc.dhcpLeasetime = "12m" // not an 'h'
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.dhcpLeasetime = "invalid" // not an integer
+	assert.True(t, oc.prepareOutput() != nil)
+	oc.dhcpLeasetime = tmp
+
 	data = []byte(`config host '123412341234'
 option mac '12:34:12:34:12:34'
 option ip '192.168.8.2'
@@ -56,5 +82,4 @@ option name 'hostname'`)
 	assert.Equal(t, "12:34:12:34:12:34", oc.leases[0].HWAddr.String())
 	assert.Equal(t, "192.168.8.2", oc.leases[0].IP.String())
 	assert.Equal(t, "hostname", oc.leases[0].Hostname)
-
 }

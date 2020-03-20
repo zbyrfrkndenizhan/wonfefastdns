@@ -200,7 +200,7 @@ func (oc *openwrtConfig) readResolvConf(data []byte) {
 	}
 }
 
-// Convert system config parameters to the format suitable by our yaml config
+// Convert system config parameters to our yaml config format
 func (oc *openwrtConfig) prepareOutput() error {
 	oc.iface = "br-lan"
 

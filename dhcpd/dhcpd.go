@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AdguardTeam/golibs/file"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/krolaw/dhcp4"
 	ping "github.com/sparrc/go-ping"
@@ -42,6 +43,9 @@ type ServerConfig struct {
 	RangeStart    string `json:"range_start" yaml:"range_start"`
 	RangeEnd      string `json:"range_end" yaml:"range_end"`
 	LeaseDuration uint32 `json:"lease_duration" yaml:"lease_duration"` // in seconds
+
+	// File path to an additional leases file in dnsmasq format
+	DnsmasqFilePath string `json:"-" yaml:"dnsmasq_leasefile"`
 
 	// IP conflict detector: time (ms) to wait for ICMP reply.
 	// 0: disable
@@ -149,7 +153,49 @@ func (s *Server) SetOnLeaseChanged(onLeaseChanged onLeaseChangedT) {
 	s.onLeaseChanged = onLeaseChanged
 }
 
+// Write DHCP leases in dnsmasq format
+// Format: UNIX_TIME MAC IP HOSTNAME CLIENT_ID
+func writeDnsmasqLeases(leases []Lease) string {
+	s := ""
+
+	for _, l := range leases {
+
+		t := l.Expiry.Unix()
+		if t == leaseExpireStatic {
+			t = 0
+		}
+
+		host := l.Hostname
+		if len(host) == 0 {
+			host = "*"
+		}
+
+		cid := "*"
+
+		s += fmt.Sprintf("%d %s %s %s %s\n",
+			t, l.HWAddr.String(), l.IP.String(), host, cid)
+	}
+
+	return s
+}
+
 func (s *Server) notify(flags int) {
+	if len(s.conf.DnsmasqFilePath) != 0 {
+		switch flags {
+		case LeaseChangedAdded:
+			fallthrough
+		case LeaseChangedAddedStatic:
+			fallthrough
+		case LeaseChangedRemovedStatic:
+			l := s.Leases(LeasesAll)
+			data := writeDnsmasqLeases(l)
+			err := file.SafeWrite(s.conf.DnsmasqFilePath, []byte(data))
+			if err != nil {
+				log.Error("file write: %s: %s", s.conf.DnsmasqFilePath, err)
+			}
+		}
+	}
+
 	if s.onLeaseChanged == nil {
 		return
 	}

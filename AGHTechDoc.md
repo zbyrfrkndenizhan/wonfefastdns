@@ -1654,6 +1654,16 @@ If started as:
 			- IP1
 			- IP2
 
+* Read `/etc/config/dhcp`:
+
+		config dnsmasq
+			option leasefile '/tmp/dhcp.leases'
+
+* Write this yaml configuration:
+
+		dhcp:
+			dnsmasq_leasefile "/tmp/dhcp.leases"
+
 And service script starts AGH like this:
 
 	.../AdGuardHome --import-openwrt-config

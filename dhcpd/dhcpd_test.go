@@ -242,3 +242,15 @@ func TestNormalizeLeases(t *testing.T) {
 	assert.True(t, bytes.Equal(leases[1].HWAddr, []byte{2, 2, 3, 4}))
 	assert.True(t, bytes.Equal(leases[2].HWAddr, []byte{1, 2, 3, 5}))
 }
+
+func TestWriteDnsmasqLeases(t *testing.T) {
+	leases := []Lease{}
+	l := Lease{}
+	l.Expiry = time.Unix(1587559766, 0)
+	l.HWAddr, _ = net.ParseMAC("12:34:12:34:12:34")
+	l.IP = net.ParseIP("192.168.8.2")
+	l.Hostname = "hostname"
+	leases = append(leases, l)
+	data := "1587559766 12:34:12:34:12:34 192.168.8.2 hostname *\n"
+	assert.Equal(t, data, writeDnsmasqLeases(leases))
+}

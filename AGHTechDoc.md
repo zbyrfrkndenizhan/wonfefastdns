@@ -1619,6 +1619,9 @@ If started as:
 			option limit '150'
 			option leasetime '12h'
 
+		config dnsmasq
+			option leasefile '/tmp/dhcp.leases'
+
 * Write this yaml configuration:
 
 		dhcp:
@@ -1630,6 +1633,7 @@ If started as:
 			range_end: "192.168.8.249"
 			lease_duration: 86400
 			icmp_timeout_msec: 1000
+			dnsmasq_leasefile "/tmp/dhcp.leases"
 
 * Read `/etc/config/dhcp`:
 
@@ -1653,16 +1657,6 @@ If started as:
 			bootstrap_dns:
 			- IP1
 			- IP2
-
-* Read `/etc/config/dhcp`:
-
-		config dnsmasq
-			option leasefile '/tmp/dhcp.leases'
-
-* Write this yaml configuration:
-
-		dhcp:
-			dnsmasq_leasefile "/tmp/dhcp.leases"
 
 And service script starts AGH like this:
 

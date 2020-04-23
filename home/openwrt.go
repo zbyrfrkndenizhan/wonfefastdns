@@ -19,9 +19,10 @@ type openwrtConfig struct {
 	ipaddr  string
 
 	// dhcp:
-	dhcpStart     string
-	dhcpLimit     string
-	dhcpLeasetime string
+	dhcpStart            string
+	dhcpLimit            string
+	dhcpLeasetime        string
+	dhcpDnsmasqLeaseFile string
 
 	// dhcp static leases:
 	leases []dhcpd.Lease
@@ -64,7 +65,7 @@ func (oc *openwrtConfig) readConf(data []byte, section string, iface string) {
 		line, err := r.ReadString('\n')
 		line = strings.TrimSpace(line)
 		if len(line) == 0 {
-			if state == 2 {
+			if state >= 2 {
 				return
 			}
 			state = 0
@@ -82,6 +83,8 @@ func (oc *openwrtConfig) readConf(data []byte, section string, iface string) {
 						state = 2 // found the needed interface
 					} else if word2 == "dhcp" {
 						state = 3
+					} else if word2 == "dnsmasq" {
+						state = 4
 					}
 				}
 			}
@@ -112,6 +115,15 @@ func (oc *openwrtConfig) readConf(data []byte, section string, iface string) {
 				oc.dhcpLimit = word3
 			case "leasetime":
 				oc.dhcpLeasetime = word3
+			}
+
+		case 4:
+			if word1 != "option" {
+				break
+			}
+			switch word2 {
+			case "leasefile":
+				oc.dhcpDnsmasqLeaseFile = word3
 			}
 		}
 
@@ -269,6 +281,7 @@ func (oc *openwrtConfig) Process() error {
 		return err
 	}
 	oc.readConf(data, "dhcp", "lan")
+	oc.readConf(data, "dnsmasq", "")
 
 	err = oc.prepareOutput()
 	if err != nil {
@@ -318,6 +331,7 @@ func importOpenwrtConfig(configFn string) error {
 	config.DHCP.RangeStart = oc.rangeStart
 	config.DHCP.RangeEnd = oc.rangeEnd
 	config.DHCP.LeaseDuration = oc.leaseDur
+	config.DHCP.DnsmasqFilePath = oc.dhcpDnsmasqLeaseFile
 
 	err = config.write()
 	if err != nil {

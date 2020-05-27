@@ -39,6 +39,9 @@ Contents:
 	* API: List rewrite entries
 	* API: Add a rewrite entry
 	* API: Remove a rewrite entry
+* SafeSearch
+	* API: Get SafeSearch parameters
+	* API: Set SafeSearch parameters
 * Services Filter
 	* API: Get blocked services list
 	* API: Set blocked services list
@@ -1034,6 +1037,43 @@ Request:
 Response:
 
 	200 OK
+
+
+## SafeSearch
+
+### API: Get SafeSearch parameters
+
+Request:
+
+	GET /control/safesearch/list
+
+Response:
+
+	200 OK
+
+	{
+		enabled: true
+		sites: [ "name1", ... ]
+	}
+
+`sites`: yandex, bing, duckduckgo, google, youtube, pixabay
+
+
+### API: Set SafeSearch parameters
+
+Request:
+
+	POST /control/safesearch/set
+
+	{
+		enabled: true
+		sites: [ "name1", ... ]
+	}
+
+Response:
+
+	200 OK
+
 
 
 ## Services Filter

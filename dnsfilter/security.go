@@ -47,7 +47,18 @@ func (d *Dnsfilter) initSecurityServices() error {
 		return err
 	}
 
+	d.initSafeSearch()
 	return nil
+}
+
+// Initialize SafeSearch unsafe-URL -> safe-URL mapping
+func (d *Dnsfilter) initSafeSearch() {
+	d.safeSearchMap = make(map[string]string)
+	for _, it := range safeSearchData {
+		for _, url := range it.urls {
+			d.safeSearchMap[url] = it.safeURL
+		}
+	}
 }
 
 /*
@@ -101,7 +112,7 @@ func getCachedResult(cache cache.Cache, host string) (Result, bool) {
 
 // SafeSearchDomain returns replacement address for search engine
 func (d *Dnsfilter) SafeSearchDomain(host string) (string, bool) {
-	val, ok := safeSearchDomains[host]
+	val, ok := d.safeSearchMap[host]
 	return val, ok
 }
 

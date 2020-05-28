@@ -55,6 +55,9 @@ type Config struct {
 	// Per-client settings can override this configuration.
 	BlockedServices []string `yaml:"blocked_services"`
 
+	// The list of enabled SafeSearch services
+	SafeSearchServices []string `yaml:"safesearch_services"`
+
 	// IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files
 	AutoHosts *util.AutoHosts `yaml:"-"`
 
@@ -190,7 +193,8 @@ func (d *Dnsfilter) WriteDiskConfig(c *Config) {
 	d.confLock.Lock()
 	*c = d.Config
 	c.Rewrites = rewriteArrayDup(d.Config.Rewrites)
-	// BlockedServices
+	c.BlockedServices = util.StringArrayDup(d.Config.BlockedServices)
+	c.SafeSearchServices = util.StringArrayDup(d.Config.SafeSearchServices)
 	d.confLock.Unlock()
 }
 

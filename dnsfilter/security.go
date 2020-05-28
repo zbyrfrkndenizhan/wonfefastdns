@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AdguardTeam/AdGuardHome/util"
 	"github.com/AdguardTeam/dnsproxy/upstream"
 	"github.com/AdguardTeam/golibs/cache"
 	"github.com/AdguardTeam/golibs/log"
@@ -47,18 +48,22 @@ func (d *Dnsfilter) initSecurityServices() error {
 		return err
 	}
 
-	d.initSafeSearch()
+	d.safeSearchMap = d.initSafeSearch(d.Config.SafeSearchServices)
 	return nil
 }
 
 // Initialize SafeSearch unsafe-URL -> safe-URL mapping
-func (d *Dnsfilter) initSafeSearch() {
-	d.safeSearchMap = make(map[string]string)
+func (d *Dnsfilter) initSafeSearch(enabled []string) map[string]string {
+	m := make(map[string]string)
 	for _, it := range safeSearchData {
+		if !util.ContainsString(enabled, it.name) {
+			continue
+		}
 		for _, url := range it.urls {
-			d.safeSearchMap[url] = it.safeURL
+			m[url] = it.safeURL
 		}
 	}
+	return m
 }
 
 /*
@@ -360,21 +365,40 @@ func (d *Dnsfilter) handleParentalStatus(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (d *Dnsfilter) handleSafeSearchEnable(w http.ResponseWriter, r *http.Request) {
-	d.Config.SafeSearchEnabled = true
-	d.Config.ConfigModified()
+type safeSearchJSON struct {
+	Enabled  bool     `json:"enabled"`
+	Services []string `json:"services"`
 }
 
-func (d *Dnsfilter) handleSafeSearchDisable(w http.ResponseWriter, r *http.Request) {
-	d.Config.SafeSearchEnabled = false
+func (d *Dnsfilter) handleSafeSearchSet(w http.ResponseWriter, r *http.Request) {
+	req := safeSearchJSON{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	m := d.initSafeSearch(req.Services)
+
+	d.confLock.Lock()
+	d.Config.SafeSearchEnabled = req.Enabled
+	d.Config.SafeSearchServices = req.Services
+	d.safeSearchMap = m
+	d.confLock.Unlock()
+
 	d.Config.ConfigModified()
 }
 
 func (d *Dnsfilter) handleSafeSearchStatus(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{
-		"enabled": d.Config.SafeSearchEnabled,
-	}
+	data := safeSearchJSON{}
+
+	d.confLock.Lock()
+	data.Enabled = d.Config.SafeSearchEnabled
+	data.Services = d.Config.SafeSearchServices
+
 	jsonVal, err := json.Marshal(data)
+	d.confLock.Unlock()
+
 	if err != nil {
 		httpError(r, w, http.StatusInternalServerError, "Unable to marshal status json: %s", err)
 		return
@@ -397,7 +421,6 @@ func (d *Dnsfilter) registerSecurityHandlers() {
 	d.Config.HTTPRegister("POST", "/control/parental/disable", d.handleParentalDisable)
 	d.Config.HTTPRegister("GET", "/control/parental/status", d.handleParentalStatus)
 
-	d.Config.HTTPRegister("POST", "/control/safesearch/enable", d.handleSafeSearchEnable)
-	d.Config.HTTPRegister("POST", "/control/safesearch/disable", d.handleSafeSearchDisable)
+	d.Config.HTTPRegister("POST", "/control/safesearch/set", d.handleSafeSearchSet)
 	d.Config.HTTPRegister("GET", "/control/safesearch/status", d.handleSafeSearchStatus)
 }

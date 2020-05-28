@@ -20,6 +20,13 @@ func ContainsString(arr []string, v string) bool {
 	return false
 }
 
+// StringArrayDup creates a copy of string array
+func StringArrayDup(a []string) []string {
+	a2 := make([]string, len(a))
+	copy(a2, a)
+	return a2
+}
+
 // fileExists returns TRUE if file exists
 func FileExists(fn string) bool {
 	_, err := os.Stat(fn)

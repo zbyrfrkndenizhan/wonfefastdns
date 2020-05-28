@@ -1045,7 +1045,7 @@ Response:
 
 Request:
 
-	GET /control/safesearch/list
+	GET /control/safesearch/status
 
 Response:
 

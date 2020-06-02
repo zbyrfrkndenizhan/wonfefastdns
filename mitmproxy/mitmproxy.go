@@ -108,11 +108,11 @@ func (p *MITMProxy) create() error {
 	c.ProxyConfig.ListenAddr = &net.TCPAddr{}
 	c.ProxyConfig.ListenAddr.IP = net.ParseIP(addr)
 	if c.ProxyConfig.ListenAddr.IP == nil {
-		return fmt.Errorf("Invalid IP: %s", addr)
+		return fmt.Errorf("invalid IP: %s", addr)
 	}
 	c.ProxyConfig.ListenAddr.Port, err = strconv.Atoi(port)
 	if c.ProxyConfig.ListenAddr.Port < 0 || c.ProxyConfig.ListenAddr.Port > 0xffff || err != nil {
-		return fmt.Errorf("Invalid port number: %s", port)
+		return fmt.Errorf("invalid port number: %s", port)
 	}
 
 	c.ProxyConfig.Username = p.conf.UserName

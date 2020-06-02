@@ -3,9 +3,7 @@ package home
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"os"
 	"os/exec"
 	"runtime"
 	"sort"
@@ -13,16 +11,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AdguardTeam/dnsproxy/proxy"
+
 	"github.com/AdguardTeam/AdGuardHome/dhcpd"
+	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
-	"github.com/AdguardTeam/dnsproxy/upstream"
+	"github.com/AdguardTeam/AdGuardHome/util"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/AdguardTeam/golibs/utils"
 )
 
 const (
-	clientsUpdatePeriod = 1 * time.Hour
+	clientsUpdatePeriod = 10 * time.Minute
 )
+
+var webHandlersRegistered = false
 
 // Client information
 type Client struct {
@@ -39,11 +42,12 @@ type Client struct {
 	BlockedServices       []string
 
 	Upstreams []string // list of upstream servers to be used for the client's requests
-	// Upstream objects:
+
+	// Custom upstream config for this client
 	// nil: not yet initialized
 	// not nil, but empty: initialized, no good upstreams
 	// not nil, not empty: Upstreams ready to be used
-	upstreamObjects []upstream.Upstream
+	upstreamConfig *proxy.UpstreamConfig
 }
 
 type clientSource uint
@@ -76,12 +80,14 @@ type clientsContainer struct {
 	// dhcpServer is used for looking up clients IP addresses by MAC addresses
 	dhcpServer *dhcpd.Server
 
+	autoHosts *util.AutoHosts // get entries from system hosts-files
+
 	testing bool // if TRUE, this object is used for internal tests
 }
 
 // Init initializes clients container
 // Note: this function must be called only once
-func (clients *clientsContainer) Init(objects []clientObject, dhcpServer *dhcpd.Server) {
+func (clients *clientsContainer) Init(objects []clientObject, dhcpServer *dhcpd.Server, autoHosts *util.AutoHosts) {
 	if clients.list != nil {
 		log.Fatal("clients.list != nil")
 	}
@@ -95,16 +101,31 @@ func (clients *clientsContainer) Init(objects []clientObject, dhcpServer *dhcpd.
 	}
 
 	clients.dhcpServer = dhcpServer
+	clients.autoHosts = autoHosts
 	clients.addFromConfig(objects)
 
 	if !clients.testing {
-		go clients.periodicUpdate()
-
 		clients.addFromDHCP()
 		clients.dhcpServer.SetOnLeaseChanged(clients.onDHCPLeaseChanged)
-
-		clients.registerWebHandlers()
+		clients.autoHosts.SetOnChanged(clients.onHostsChanged)
 	}
+}
+
+// Start - start the module
+func (clients *clientsContainer) Start() {
+	if !clients.testing {
+		if !webHandlersRegistered {
+			webHandlersRegistered = true
+			clients.registerWebHandlers()
+		}
+		go clients.periodicUpdate()
+	}
+
+}
+
+// Reload - reload auto-clients
+func (clients *clientsContainer) Reload() {
+	clients.addFromSystemARP()
 }
 
 type clientObject struct {
@@ -140,9 +161,16 @@ func (clients *clientsContainer) addFromConfig(objects []clientObject) {
 			SafeBrowsingEnabled: cy.SafeBrowsingEnabled,
 
 			UseOwnBlockedServices: !cy.UseGlobalBlockedServices,
-			BlockedServices:       cy.BlockedServices,
 
 			Upstreams: cy.Upstreams,
+		}
+
+		for _, s := range cy.BlockedServices {
+			if !dnsfilter.BlockedSvcKnown(s) {
+				log.Debug("Clients: skipping unknown blocked-service '%s'", s)
+				continue
+			}
+			cli.BlockedServices = append(cli.BlockedServices, s)
 		}
 
 		for _, t := range cy.Tags {
@@ -187,8 +215,7 @@ func (clients *clientsContainer) WriteDiskConfig(objects *[]clientObject) {
 
 func (clients *clientsContainer) periodicUpdate() {
 	for {
-		clients.addFromHostsFile()
-		clients.addFromSystemARP()
+		clients.Reload()
 		time.Sleep(clientsUpdatePeriod)
 	}
 }
@@ -200,6 +227,10 @@ func (clients *clientsContainer) onDHCPLeaseChanged(flags int) {
 		dhcpd.LeaseChangedRemovedStatic:
 		clients.addFromDHCP()
 	}
+}
+
+func (clients *clientsContainer) onHostsChanged() {
+	clients.addFromHostsFile()
 }
 
 // Exists checks if client with this IP already exists
@@ -244,16 +275,10 @@ func (clients *clientsContainer) Find(ip string) (Client, bool) {
 	return c, true
 }
 
-func upstreamArrayCopy(a []upstream.Upstream) []upstream.Upstream {
-	a2 := make([]upstream.Upstream, len(a))
-	copy(a2, a)
-	return a2
-}
-
 // FindUpstreams looks for upstreams configured for the client
 // If no client found for this IP, or if no custom upstreams are configured,
 // this method returns nil
-func (clients *clientsContainer) FindUpstreams(ip string) []upstream.Upstream {
+func (clients *clientsContainer) FindUpstreams(ip string) *proxy.UpstreamConfig {
 	clients.lock.Lock()
 	defer clients.lock.Unlock()
 
@@ -262,22 +287,18 @@ func (clients *clientsContainer) FindUpstreams(ip string) []upstream.Upstream {
 		return nil
 	}
 
-	if c.upstreamObjects == nil {
-		c.upstreamObjects = make([]upstream.Upstream, 0)
-		for _, us := range c.Upstreams {
-			u, err := upstream.AddressToUpstream(us, upstream.Options{Timeout: dnsforward.DefaultTimeout})
-			if err != nil {
-				log.Error("upstream.AddressToUpstream: %s: %s", us, err)
-				continue
-			}
-			c.upstreamObjects = append(c.upstreamObjects, u)
+	if len(c.Upstreams) == 0 {
+		return nil
+	}
+
+	if c.upstreamConfig == nil {
+		config, err := proxy.ParseUpstreamsConfig(c.Upstreams, config.DNS.BootstrapDNS, dnsforward.DefaultTimeout)
+		if err == nil {
+			c.upstreamConfig = &config
 		}
 	}
 
-	if len(c.upstreamObjects) == 0 {
-		return nil
-	}
-	return upstreamArrayCopy(c.upstreamObjects)
+	return c.upstreamConfig
 }
 
 // Find searches for a client by IP (and does not lock anything)
@@ -346,7 +367,7 @@ func (clients *clientsContainer) FindAutoClient(ip string) (ClientHost, bool) {
 // Check if Client object's fields are correct
 func (clients *clientsContainer) check(c *Client) error {
 	if len(c.Name) == 0 {
-		return fmt.Errorf("Invalid Name")
+		return fmt.Errorf("invalid Name")
 	}
 
 	if len(c.IDs) == 0 {
@@ -370,12 +391,12 @@ func (clients *clientsContainer) check(c *Client) error {
 			continue
 		}
 
-		return fmt.Errorf("Invalid ID: %s", id)
+		return fmt.Errorf("invalid ID: %s", id)
 	}
 
 	for _, t := range c.Tags {
 		if !clients.tagKnown(t) {
-			return fmt.Errorf("Invalid tag: %s", t)
+			return fmt.Errorf("invalid tag: %s", t)
 		}
 	}
 	sort.Strings(c.Tags)
@@ -383,7 +404,7 @@ func (clients *clientsContainer) check(c *Client) error {
 	if len(c.Upstreams) != 0 {
 		err := dnsforward.ValidateUpstreams(c.Upstreams)
 		if err != nil {
-			return fmt.Errorf("Invalid upstream servers: %s", err)
+			return fmt.Errorf("invalid upstream servers: %s", err)
 		}
 	}
 
@@ -411,7 +432,7 @@ func (clients *clientsContainer) Add(c Client) (bool, error) {
 	for _, id := range c.IDs {
 		c2, ok := clients.idIndex[id]
 		if ok {
-			return false, fmt.Errorf("Another client uses the same ID (%s): %s", id, c2.Name)
+			return false, fmt.Errorf("another client uses the same ID (%s): %s", id, c2.Name)
 		}
 	}
 
@@ -472,14 +493,14 @@ func (clients *clientsContainer) Update(name string, c Client) error {
 
 	old, ok := clients.list[name]
 	if !ok {
-		return fmt.Errorf("Client not found")
+		return fmt.Errorf("client not found")
 	}
 
 	// check Name index
 	if old.Name != c.Name {
 		_, ok = clients.list[c.Name]
 		if ok {
-			return fmt.Errorf("Client already exists")
+			return fmt.Errorf("client already exists")
 		}
 	}
 
@@ -488,7 +509,7 @@ func (clients *clientsContainer) Update(name string, c Client) error {
 		for _, id := range c.IDs {
 			c2, ok := clients.idIndex[id]
 			if ok && c2 != old {
-				return fmt.Errorf("Another client uses the same ID (%s): %s", id, c2.Name)
+				return fmt.Errorf("another client uses the same ID (%s): %s", id, c2.Name)
 			}
 		}
 
@@ -508,7 +529,7 @@ func (clients *clientsContainer) Update(name string, c Client) error {
 	}
 
 	// update upstreams cache
-	c.upstreamObjects = nil
+	c.upstreamConfig = nil
 
 	*old = c
 	return nil
@@ -582,46 +603,28 @@ func (clients *clientsContainer) rmHosts(source clientSource) int {
 	return n
 }
 
-// Parse system 'hosts' file and fill clients array
+// Fill clients array from system hosts-file
 func (clients *clientsContainer) addFromHostsFile() {
-	hostsFn := "/etc/hosts"
-	if runtime.GOOS == "windows" {
-		hostsFn = os.ExpandEnv("$SystemRoot\\system32\\drivers\\etc\\hosts")
-	}
-
-	d, e := ioutil.ReadFile(hostsFn)
-	if e != nil {
-		log.Info("Can't read file %s: %v", hostsFn, e)
-		return
-	}
+	hosts := clients.autoHosts.List()
 
 	clients.lock.Lock()
 	defer clients.lock.Unlock()
 	_ = clients.rmHosts(ClientSourceHostsFile)
 
-	lines := strings.Split(string(d), "\n")
 	n := 0
-	for _, ln := range lines {
-		ln = strings.TrimSpace(ln)
-		if len(ln) == 0 || ln[0] == '#' {
-			continue
-		}
-
-		fields := strings.Fields(ln)
-		if len(fields) < 2 {
-			continue
-		}
-
-		ok, e := clients.addHost(fields[0], fields[1], ClientSourceHostsFile)
-		if e != nil {
-			log.Tracef("%s", e)
-		}
-		if ok {
-			n++
+	for ip, names := range hosts {
+		for _, name := range names {
+			ok, err := clients.addHost(ip, name.String(), ClientSourceHostsFile)
+			if err != nil {
+				log.Debug("Clients: %s", err)
+			}
+			if ok {
+				n++
+			}
 		}
 	}
 
-	log.Debug("Clients: added %d client aliases from %s", n, hostsFn)
+	log.Debug("Clients: added %d client aliases from system hosts-file", n)
 }
 
 // Add IP -> Host pairs from the system's `arp -a` command output

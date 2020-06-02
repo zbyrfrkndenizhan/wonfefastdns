@@ -1,6 +1,6 @@
 import React, { Component, Fragment } from 'react';
 import PropTypes from 'prop-types';
-import { withNamespaces } from 'react-i18next';
+import { withTranslation } from 'react-i18next';
 
 import PageTitle from '../ui/PageTitle';
 import Card from '../ui/Card';
@@ -40,11 +40,14 @@ class DnsAllowlist extends Component {
         this.props.toggleFilterStatus(url, data, whitelist);
     };
 
+    handleRefresh = () => {
+        this.props.refreshFilters({ whitelist: true });
+    };
+
     render() {
         const {
             t,
             toggleFilteringModal,
-            refreshFilters,
             addFilter,
             toggleFilterStatus,
             filtering: {
@@ -61,7 +64,8 @@ class DnsAllowlist extends Component {
             },
         } = this.props;
         const currentFilterData = getCurrentFilter(modalFilterUrl, whitelistFilters);
-        const loading = processingFilters
+        const loading = processingConfigFilter
+            || processingFilters
             || processingAddFilter
             || processingRemoveFilter
             || processingRefreshFilters;
@@ -89,7 +93,7 @@ class DnsAllowlist extends Component {
                                 />
                                 <Actions
                                     handleAdd={() => toggleFilteringModal({ type: MODAL_TYPE.ADD })}
-                                    handleRefresh={refreshFilters}
+                                    handleRefresh={this.handleRefresh}
                                     processingRefreshFilters={processingRefreshFilters}
                                     whitelist={whitelist}
                                 />
@@ -127,4 +131,4 @@ DnsAllowlist.propTypes = {
     t: PropTypes.func.isRequired,
 };
 
-export default withNamespaces()(DnsAllowlist);
+export default withTranslation()(DnsAllowlist);

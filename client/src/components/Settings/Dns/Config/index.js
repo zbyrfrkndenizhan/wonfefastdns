@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { withNamespaces } from 'react-i18next';
+import { withTranslation } from 'react-i18next';
 
 import Card from '../../../ui/Card';
 import Form from './Form';
@@ -16,6 +16,7 @@ const Config = ({ t, dnsConfig, setDnsConfig }) => {
         blocking_ipv4,
         blocking_ipv6,
         edns_cs_enabled,
+        dnssec_enabled,
         disable_ipv6,
         processingSetConfig,
     } = dnsConfig;
@@ -35,6 +36,7 @@ const Config = ({ t, dnsConfig, setDnsConfig }) => {
                         blocking_ipv6,
                         edns_cs_enabled,
                         disable_ipv6,
+                        dnssec_enabled,
                     }}
                     onSubmit={handleFormSubmit}
                     processing={processingSetConfig}
@@ -50,4 +52,4 @@ Config.propTypes = {
     t: PropTypes.func.isRequired,
 };
 
-export default withNamespaces()(Config);
+export default withTranslation()(Config);

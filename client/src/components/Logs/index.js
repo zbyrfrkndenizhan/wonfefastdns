@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import ReactTable from 'react-table';
 import escapeRegExp from 'lodash/escapeRegExp';
 import endsWith from 'lodash/endsWith';
-import { Trans, withNamespaces } from 'react-i18next';
+import { Trans, withTranslation } from 'react-i18next';
 import { HashLink as Link } from 'react-router-hash-link';
 
 import {
@@ -12,11 +12,14 @@ import {
     isToday,
     checkFiltered,
     checkRewrite,
+    checkRewriteHosts,
     checkWhiteList,
     checkBlackList,
     checkBlockedService,
 } from '../../helpers/helpers';
-import { SERVICES, TABLE_DEFAULT_PAGE_SIZE, CUSTOM_FILTERING_RULES_ID, FILTERED } from '../../helpers/constants';
+import {
+    SERVICES, TABLE_DEFAULT_PAGE_SIZE, CUSTOM_FILTERING_RULES_ID, FILTERED,
+} from '../../helpers/constants';
 import { getTrackerData } from '../../helpers/trackers/trackers';
 import { formatClientCell } from '../../helpers/formatClientCell';
 
@@ -53,8 +56,8 @@ class Logs extends Component {
         window.location.reload();
     };
 
-    renderTooltip = (isFiltered, rule, filter, service) =>
-        isFiltered && <PopoverFiltered rule={rule} filter={filter} service={service} />;
+    renderTooltip = (isFiltered, rule, filter, service) => isFiltered
+        && <PopoverFiltered rule={rule} filter={filter} service={service} />;
 
     renderResponseList = (response, status) => {
         if (response.length > 0) {
@@ -115,7 +118,7 @@ class Logs extends Component {
         );
     }
 
-    getDateCell = row => CellWrap(
+    getDateCell = (row) => CellWrap(
         row,
         (isToday(row.value) ? formatTime : formatDateTime),
         formatDateTime,
@@ -133,7 +136,7 @@ class Logs extends Component {
         );
     };
 
-    normalizeResponse = response => (
+    normalizeResponse = (response) => (
         response.map((response) => {
             const { value, type, ttl } = response;
             return `${type}: ${value} (ttl=${ttl})`;
@@ -145,8 +148,8 @@ class Logs extends Component {
             return t('custom_filter_rules');
         }
 
-        const filter = filters.find(filter => filter.id === filterId)
-            || whitelistFilters.find(filter => filter.id === filterId);
+        const filter = filters.find((filter) => filter.id === filterId)
+            || whitelistFilters.find((filter) => filter.id === filterId);
         let filterName = '';
 
         if (filter) {
@@ -170,13 +173,14 @@ class Logs extends Component {
         const isFiltered = checkFiltered(reason);
         const isBlackList = checkBlackList(reason);
         const isRewrite = checkRewrite(reason);
+        const isRewriteAuto = checkRewriteHosts(reason);
         const isWhiteList = checkWhiteList(reason);
         const isBlockedService = checkBlockedService(reason);
         const isBlockedCnameIp = originalAnswer;
 
         const filterKey = reason.replace(FILTERED, '');
         const parsedFilteredReason = t('query_log_filtered', { filter: filterKey });
-        const currentService = SERVICES.find(service => service.id === original.serviceName);
+        const currentService = SERVICES.find((service) => service.id === original.serviceName);
         const serviceName = currentService && currentService.name;
         const filterName = this.getFilterName(filters, whitelistFilters, filterId, t);
 
@@ -221,6 +225,13 @@ class Logs extends Component {
                             <Trans>rewrite_applied</Trans>
                         </strong>
                     )}
+                    {isRewriteAuto && (
+                        <span className="logs__text">
+                            <strong>
+                                <Trans>rewrite_hosts_applied</Trans>
+                            </strong>
+                        </span>
+                    )}
                 </div>
                 <div className="logs__list-wrap">
                     {this.renderResponseList(responses, status)}
@@ -236,6 +247,15 @@ class Logs extends Component {
         const { reason, domain } = original;
         const isFiltered = checkFiltered(reason);
         const isRewrite = checkRewrite(reason);
+        const isAutoRewrite = checkRewriteHosts(reason);
+
+        if (isAutoRewrite) {
+            return (
+                <div className="logs__row logs__row--overflow logs__row--column">
+                    {formatClientCell(row, t)}
+                </div>
+            );
+        }
 
         return (
             <Fragment>
@@ -360,11 +380,11 @@ class Logs extends Component {
                         return {
                             className: 'red',
                         };
-                    } else if (checkWhiteList(reason)) {
+                    } if (checkWhiteList(reason)) {
                         return {
                             className: 'green',
                         };
-                    } else if (checkRewrite(reason)) {
+                    } if (checkRewrite(reason) || checkRewriteHosts(reason)) {
                         return {
                             className: 'blue',
                         };
@@ -449,4 +469,4 @@ Logs.propTypes = {
     t: PropTypes.func.isRequired,
 };
 
-export default withNamespaces()(Logs);
+export default withTranslation()(Logs);

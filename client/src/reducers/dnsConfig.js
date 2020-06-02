@@ -8,13 +8,14 @@ const DEFAULT_BLOCKING_IPV6 = '::';
 
 const dnsConfig = handleActions(
     {
-        [actions.getDnsConfigRequest]: state => ({ ...state, processingGetConfig: true }),
-        [actions.getDnsConfigFailure]: state =>
-            ({ ...state, processingGetConfig: false }),
+        [actions.getDnsConfigRequest]: (state) => ({ ...state, processingGetConfig: true }),
+        [actions.getDnsConfigFailure]: (state) => ({ ...state, processingGetConfig: false }),
         [actions.getDnsConfigSuccess]: (state, { payload }) => {
             const {
                 blocking_ipv4,
                 blocking_ipv6,
+                upstream_dns,
+                bootstrap_dns,
                 ...values
             } = payload;
 
@@ -23,13 +24,14 @@ const dnsConfig = handleActions(
                 ...values,
                 blocking_ipv4: blocking_ipv4 || DEFAULT_BLOCKING_IPV4,
                 blocking_ipv6: blocking_ipv6 || DEFAULT_BLOCKING_IPV6,
+                upstream_dns: (upstream_dns && upstream_dns.join('\n')) || '',
+                bootstrap_dns: (bootstrap_dns && bootstrap_dns.join('\n')) || '',
                 processingGetConfig: false,
             };
         },
 
-        [actions.setDnsConfigRequest]: state => ({ ...state, processingSetConfig: true }),
-        [actions.setDnsConfigFailure]: state =>
-            ({ ...state, processingSetConfig: false }),
+        [actions.setDnsConfigRequest]: (state) => ({ ...state, processingSetConfig: true }),
+        [actions.setDnsConfigFailure]: (state) => ({ ...state, processingSetConfig: false }),
         [actions.setDnsConfigSuccess]: (state, { payload }) => ({
             ...state,
             ...payload,
@@ -45,6 +47,7 @@ const dnsConfig = handleActions(
         blocking_ipv6: DEFAULT_BLOCKING_IPV6,
         edns_cs_enabled: false,
         disable_ipv6: false,
+        dnssec_enabled: false,
     },
 );
 

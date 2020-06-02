@@ -18,7 +18,7 @@ func TestClients(t *testing.T) {
 	clients := clientsContainer{}
 	clients.testing = true
 
-	clients.Init(nil, nil)
+	clients.Init(nil, nil, nil)
 
 	// add
 	c = Client{
@@ -156,7 +156,7 @@ func TestClientsWhois(t *testing.T) {
 	var c Client
 	clients := clientsContainer{}
 	clients.testing = true
-	clients.Init(nil, nil)
+	clients.Init(nil, nil, nil)
 
 	whois := [][]string{{"orgname", "orgname-val"}, {"country", "country-val"}}
 	// set whois info on new client
@@ -183,7 +183,7 @@ func TestClientsAddExisting(t *testing.T) {
 	var c Client
 	clients := clientsContainer{}
 	clients.testing = true
-	clients.Init(nil, nil)
+	clients.Init(nil, nil, nil)
 
 	// some test variables
 	mac, _ := net.ParseMAC("aa:aa:aa:aa:aa:aa")
@@ -235,4 +235,32 @@ func TestClientsAddExisting(t *testing.T) {
 	ok, err = clients.Add(c)
 	assert.True(t, ok)
 	assert.Nil(t, err)
+}
+
+func TestClientsCustomUpstream(t *testing.T) {
+	clients := clientsContainer{}
+	clients.testing = true
+
+	clients.Init(nil, nil, nil)
+
+	// add client with upstreams
+	client := Client{
+		IDs:  []string{"1.1.1.1", "1:2:3::4", "aa:aa:aa:aa:aa:aa"},
+		Name: "client1",
+		Upstreams: []string{
+			"1.1.1.1",
+			"[/example.org/]8.8.8.8",
+		},
+	}
+	ok, err := clients.Add(client)
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	config := clients.FindUpstreams("1.2.3.4")
+	assert.Nil(t, config)
+
+	config = clients.FindUpstreams("1.1.1.1")
+	assert.NotNil(t, config)
+	assert.Equal(t, 1, len(config.Upstreams))
+	assert.Equal(t, 1, len(config.DomainReservedUpstreams))
 }

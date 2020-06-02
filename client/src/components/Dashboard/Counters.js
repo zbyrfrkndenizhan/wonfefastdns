@@ -1,10 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Trans, withNamespaces } from 'react-i18next';
+import { Trans, withTranslation } from 'react-i18next';
 import round from 'lodash/round';
 
 import Card from '../ui/Card';
 import Tooltip from '../ui/Tooltip';
+import { formatNumber } from '../../helpers/helpers';
 
 const tooltipType = 'tooltip-custom--narrow';
 
@@ -22,10 +23,9 @@ const Counters = (props) => {
         avgProcessingTime,
     } = props;
 
-    const tooltipTitle =
-        interval === 1
-            ? t('number_of_dns_query_24_hours')
-            : t('number_of_dns_query_days', { count: interval });
+    const tooltipTitle = interval === 1
+        ? t('number_of_dns_query_24_hours')
+        : t('number_of_dns_query_days', { count: interval });
 
     return (
         <Card
@@ -42,7 +42,9 @@ const Counters = (props) => {
                             <Tooltip text={tooltipTitle} type={tooltipType} />
                         </td>
                         <td className="text-right">
-                            <span className="text-muted">{dnsQueries}</span>
+                            <span className="text-muted">
+                                {formatNumber(dnsQueries)}
+                            </span>
                         </td>
                     </tr>
                     <tr>
@@ -56,7 +58,9 @@ const Counters = (props) => {
                             />
                         </td>
                         <td className="text-right">
-                            <span className="text-muted">{blockedFiltering}</span>
+                            <span className="text-muted">
+                                {formatNumber(blockedFiltering)}
+                            </span>
                         </td>
                     </tr>
                     <tr>
@@ -68,7 +72,9 @@ const Counters = (props) => {
                             />
                         </td>
                         <td className="text-right">
-                            <span className="text-muted">{replacedSafebrowsing}</span>
+                            <span className="text-muted">
+                                {formatNumber(replacedSafebrowsing)}
+                            </span>
                         </td>
                     </tr>
                     <tr>
@@ -80,7 +86,9 @@ const Counters = (props) => {
                             />
                         </td>
                         <td className="text-right">
-                            <span className="text-muted">{replacedParental}</span>
+                            <span className="text-muted">
+                                {formatNumber(replacedParental)}
+                            </span>
                         </td>
                     </tr>
                     <tr>
@@ -92,7 +100,9 @@ const Counters = (props) => {
                             />
                         </td>
                         <td className="text-right">
-                            <span className="text-muted">{replacedSafesearch}</span>
+                            <span className="text-muted">
+                                {formatNumber(replacedSafesearch)}
+                            </span>
                         </td>
                     </tr>
                     <tr>
@@ -125,4 +135,4 @@ Counters.propTypes = {
     t: PropTypes.func.isRequired,
 };
 
-export default withNamespaces()(Counters);
+export default withTranslation()(Counters);

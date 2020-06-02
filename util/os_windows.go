@@ -1,6 +1,11 @@
 package util
 
-import "golang.org/x/sys/windows"
+import (
+	"fmt"
+	"syscall"
+
+	"golang.org/x/sys/windows"
+)
 
 // Set user-specified limit of how many fd's we can use
 func SetRlimit(val uint) {
@@ -8,7 +13,7 @@ func SetRlimit(val uint) {
 
 func HaveAdminRights() (bool, error) {
 	var token windows.Token
-	h, _ := windows.GetCurrentProcess()
+	h := windows.CurrentProcess()
 	err := windows.OpenProcessToken(h, windows.TOKEN_QUERY, &token)
 	if err != nil {
 		return false, err
@@ -25,4 +30,8 @@ func HaveAdminRights() (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+func SendProcessSignal(pid int, sig syscall.Signal) error {
+	return fmt.Errorf("not supported on Windows")
 }

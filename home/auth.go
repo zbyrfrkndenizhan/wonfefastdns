@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/AdguardTeam/golibs/log"
-	"github.com/etcd-io/bbolt"
+	"go.etcd.io/bbolt"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -71,6 +71,8 @@ type User struct {
 
 // InitAuth - create a global object
 func InitAuth(dbFilename string, users []User, sessionTTL uint32) *Auth {
+	log.Info("Initializing auth module: %s", dbFilename)
+
 	a := Auth{}
 	a.sessionTTL = sessionTTL
 	a.sessions = make(map[string]*session)
@@ -83,7 +85,7 @@ func InitAuth(dbFilename string, users []User, sessionTTL uint32) *Auth {
 	}
 	a.loadSessions()
 	a.users = users
-	log.Debug("Auth: initialized.  users:%d  sessions:%d", len(a.users), len(a.sessions))
+	log.Info("Auth: initialized.  users:%d  sessions:%d", len(a.users), len(a.sessions))
 	return &a
 }
 
@@ -374,15 +376,14 @@ func optionalAuth(handler func(http.ResponseWriter, *http.Request)) func(http.Re
 					w.WriteHeader(http.StatusFound)
 					return
 				} else if r < 0 {
-					log.Info("Auth: invalid cookie value: %s", cookie)
+					log.Debug("Auth: invalid cookie value: %s", cookie)
 				}
 			}
 
-		} else if r.URL.Path == "/favicon.png" ||
-			strings.HasPrefix(r.URL.Path, "/login.") ||
-			strings.HasPrefix(r.URL.Path, "/__locales/") {
+		} else if strings.HasPrefix(r.URL.Path, "/assets/") ||
+			strings.HasPrefix(r.URL.Path, "/login.") {
 			// process as usual
-
+			// no additional auth requirements
 		} else if Context.auth != nil && Context.auth.AuthRequired() {
 			// redirect to login page if not authenticated
 			ok := false
@@ -392,7 +393,7 @@ func optionalAuth(handler func(http.ResponseWriter, *http.Request)) func(http.Re
 				if r == 0 {
 					ok = true
 				} else if r < 0 {
-					log.Info("Auth: invalid cookie value: %s", cookie)
+					log.Debug("Auth: invalid cookie value: %s", cookie)
 				}
 			} else {
 				// there's no Cookie, check Basic authentication

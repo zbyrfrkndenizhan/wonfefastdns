@@ -1,13 +1,27 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { withNamespaces } from 'react-i18next';
+import { withTranslation } from 'react-i18next';
+import cn from 'classnames';
 
 import Form from './Form';
 import Card from '../../../ui/Card';
+import { DNS_REQUEST_OPTIONS } from '../../../../helpers/constants';
+
 
 class Upstream extends Component {
-    handleSubmit = (values) => {
-        this.props.setUpstream(values);
+    handleSubmit = ({ bootstrap_dns, upstream_dns, dnsRequestOption }) => {
+        const disabledOption = dnsRequestOption === DNS_REQUEST_OPTIONS.PARALLEL_REQUESTS
+            ? DNS_REQUEST_OPTIONS.FASTEST_ADDR
+            : DNS_REQUEST_OPTIONS.PARALLEL_REQUESTS;
+
+        const formattedValues = {
+            bootstrap_dns,
+            upstream_dns,
+            [dnsRequestOption]: true,
+            [disabledOption]: false,
+        };
+
+        this.props.setDnsConfig(formattedValues);
     };
 
     handleTest = (values) => {
@@ -17,12 +31,20 @@ class Upstream extends Component {
     render() {
         const {
             t,
-            upstreamDns: upstream_dns,
-            bootstrapDns: bootstrap_dns,
-            allServers: all_servers,
-            processingSetUpstream,
             processingTestUpstream,
+            dnsConfig: {
+                upstream_dns,
+                bootstrap_dns,
+                fastest_addr,
+                parallel_requests,
+                processingSetConfig,
+            },
         } = this.props;
+
+        const dnsRequestOption = cn({
+            parallel_requests,
+            fastest_addr,
+        });
 
         return (
             <Card
@@ -36,12 +58,12 @@ class Upstream extends Component {
                             initialValues={{
                                 upstream_dns,
                                 bootstrap_dns,
-                                all_servers,
+                                dnsRequestOption,
                             }}
                             testUpstream={this.handleTest}
                             onSubmit={this.handleSubmit}
                             processingTestUpstream={processingTestUpstream}
-                            processingSetUpstream={processingSetUpstream}
+                            processingSetConfig={processingSetConfig}
                         />
                     </div>
                 </div>
@@ -51,14 +73,11 @@ class Upstream extends Component {
 }
 
 Upstream.propTypes = {
-    upstreamDns: PropTypes.string,
-    bootstrapDns: PropTypes.string,
-    allServers: PropTypes.bool,
-    setUpstream: PropTypes.func.isRequired,
     testUpstream: PropTypes.func.isRequired,
-    processingSetUpstream: PropTypes.bool.isRequired,
     processingTestUpstream: PropTypes.bool.isRequired,
     t: PropTypes.func.isRequired,
+    dnsConfig: PropTypes.object.isRequired,
+    setDnsConfig: PropTypes.func.isRequired,
 };
 
-export default withNamespaces()(Upstream);
+export default withTranslation()(Upstream);

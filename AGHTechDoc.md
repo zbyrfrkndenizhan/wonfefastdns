@@ -77,7 +77,6 @@ Contents:
 ![](doc/agh-arch.png)
 
 
-
 ## First startup
 
 The first application startup is detected when there's no .yaml configuration file.
@@ -889,13 +888,19 @@ Response:
 	200 OK
 
 	{
+		"upstream_dns": ["tls://...", ...],
+		"bootstrap_dns": ["1.2.3.4", ...],
+
 		"protection_enabled": true | false,
 		"ratelimit": 1234,
 		"blocking_mode": "default" | "nxdomain" | "null_ip" | "custom_ip",
 		"blocking_ipv4": "1.2.3.4",
 		"blocking_ipv6": "1:2:3::4",
 		"edns_cs_enabled": true | false,
+		"dnssec_enabled": true | false
 		"disable_ipv6": true | false,
+		"fastest_addr": true | false, // use Fastest Address algorithm
+		"parallel_requests": true | false, // send DNS requests to all upstream servers at once
 	}
 
 
@@ -906,13 +911,19 @@ Request:
 	POST /control/dns_config
 
 	{
+		"upstream_dns": ["tls://...", ...],
+		"bootstrap_dns": ["1.2.3.4", ...],
+
 		"protection_enabled": true | false,
 		"ratelimit": 1234,
 		"blocking_mode": "default" | "nxdomain" | "null_ip" | "custom_ip",
 		"blocking_ipv4": "1.2.3.4",
 		"blocking_ipv6": "1:2:3::4",
 		"edns_cs_enabled": true | false,
+		"dnssec_enabled": true | false
 		"disable_ipv6": true | false,
+		"fastest_addr": true | false, // use Fastest Address algorithm
+		"parallel_requests": true | false, // send DNS requests to all upstream servers at once
 	}
 
 Response:
@@ -951,7 +962,7 @@ Response:
 	{
 		allowed_clients: ["127.0.0.1", ...]
 		disallowed_clients: ["127.0.0.1", ...]
-		blocked_hosts: ["host.com", ...]
+		blocked_hosts: ["host.com", ...] // host name or a wildcard
 	}
 
 
@@ -1261,6 +1272,7 @@ Response:
 			}
 			...
 		],
+		"answer_dnssec": true,
 		"client":"127.0.0.1",
 		"elapsedMs":"0.098403",
 		"filterId":1,
@@ -1291,11 +1303,21 @@ Request:
 	{
 		"enabled": true | false
 		"interval": 1 | 7 | 30 | 90
+		"anonymize_client_ip": true | false // anonymize clients' IP addresses
 	}
 
 Response:
 
 	200 OK
+
+`anonymize_client_ip`:
+1. New log entries written to a log file will contain modified client IP addresses.  Note that there's no way to obtain the full IP address later for these entries.
+2. `GET /control/querylog` response data will contain modified client IP addresses (masked /24 or /112).
+3. Searching by client IP won't work for the previously stored entries.
+
+How `anonymize_client_ip` affects Stats:
+1. After AGH restart, new stats entries will contain modified client IP addresses.
+2. Existing entries are not affected.
 
 
 ### API: Get querylog parameters
@@ -1311,6 +1333,7 @@ Response:
 	{
 		"enabled": true | false
 		"interval": 1 | 7 | 30 | 90
+		"anonymize_client_ip": true | false
 	}
 
 
@@ -1322,7 +1345,10 @@ This is how DNS requests and responses are filtered by AGH:
 
 * 'dnsproxy' module receives DNS request from client and passes control to AGH
 * AGH applies filtering logic to the host name in DNS Question:
-	* process Rewrite rules
+	* process Rewrite rules.
+		Can set CNAME and a list of IP addresses.
+	* process /etc/hosts entries.
+		Can set a list of IP addresses or a hostname (for PTR requests).
 	* match host name against filtering lists
 	* match host name against blocked services rules
 	* process SafeSearch rules
@@ -1411,6 +1437,10 @@ Request:
 
 	POST /control/filtering/refresh
 
+	{
+		"whitelist": true
+	}
+
 Response:
 
 	200 OK
@@ -1428,7 +1458,7 @@ Request:
 
 	{
 		"name": "..."
-		"url": "..."
+		"url": "..." // URL or an absolute file path
 		"whitelist": true
 	}
 

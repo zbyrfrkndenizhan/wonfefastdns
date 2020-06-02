@@ -1,9 +1,11 @@
 package home
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -71,6 +73,48 @@ func svcAction(s service.Service, action string) error {
 	return err
 }
 
+// Send SIGHUP to a process with ID taken from our pid-file
+// If pid-file doesn't exist, find our PID using 'ps' command
+func sendSigReload() {
+	if runtime.GOOS == "windows" {
+		log.Error("Not implemented on Windows")
+		return
+	}
+
+	pidfile := fmt.Sprintf("/var/run/%s.pid", serviceName)
+	data, err := ioutil.ReadFile(pidfile)
+	if os.IsNotExist(err) {
+		code, psdata, err := util.RunCommand("ps", "-C", serviceName, "-o", "pid=")
+		if err != nil || code != 0 {
+			log.Error("Can't find AdGuardHome process: %s  code:%d", err, code)
+			return
+		}
+		data = []byte(psdata)
+
+	} else if err != nil {
+		log.Error("Can't read PID file %s: %s", pidfile, err)
+		return
+	}
+
+	parts := strings.SplitN(string(data), "\n", 2)
+	if len(parts) == 0 {
+		log.Error("Can't read PID file %s: bad value", pidfile)
+		return
+	}
+
+	pid, err := strconv.Atoi(parts[0])
+	if err != nil {
+		log.Error("Can't read PID file %s: %s", pidfile, err)
+		return
+	}
+	err = util.SendProcessSignal(pid, syscall.SIGHUP)
+	if err != nil {
+		log.Error("Can't send signal to PID %d: %s", pid, err)
+		return
+	}
+	log.Debug("Sent signal to PID %d", pid)
+}
+
 // handleServiceControlAction one of the possible control actions:
 // install -- installs a service/daemon
 // uninstall -- uninstalls it
@@ -83,6 +127,11 @@ func svcAction(s service.Service, action string) error {
 // that it is being run as a service/daemon.
 func handleServiceControlAction(action string) {
 	log.Printf("Service control action: %s", action)
+
+	if action == "reload" {
+		sendSigReload()
+		return
+	}
 
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -147,7 +196,7 @@ func handleServiceInstallCommand(s service.Service) {
 		log.Fatal(err)
 	}
 
-	if isOpenWrt() {
+	if util.IsOpenWrt() {
 		// On OpenWrt it is important to run enable after the service installation
 		// Otherwise, the service won't start on the system startup
 		_, err := runInitdCommand("enable")
@@ -174,7 +223,7 @@ Click on the link below and follow the Installation Wizard steps to finish setup
 
 // handleServiceStatusCommand handles service "uninstall" command
 func handleServiceUninstallCommand(s service.Service) {
-	if isOpenWrt() {
+	if util.IsOpenWrt() {
 		// On OpenWrt it is important to run disable command first
 		// as it will remove the symlink
 		_, err := runInitdCommand("disable")
@@ -221,7 +270,7 @@ func configureService(c *service.Config) {
 	c.Option["SysvScript"] = sysvScript
 
 	// On OpenWrt we're using a different type of sysvScript
-	if isOpenWrt() {
+	if util.IsOpenWrt() {
 		c.Option["SysvScript"] = openWrtScript
 	}
 }
@@ -232,20 +281,6 @@ func runInitdCommand(action string) (int, error) {
 	confPath := "/etc/init.d/" + serviceName
 	code, _, err := util.RunCommand("sh", "-c", confPath+" "+action)
 	return code, err
-}
-
-// isOpenWrt checks if OS is OpenWRT
-func isOpenWrt() bool {
-	if runtime.GOOS != "linux" {
-		return false
-	}
-
-	body, err := ioutil.ReadFile("/etc/os-release")
-	if err != nil {
-		return false
-	}
-
-	return strings.Contains(string(body), "OpenWrt")
 }
 
 // Basically the same template as the one defined in github.com/kardianos/service

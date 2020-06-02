@@ -1,18 +1,16 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Field, reduxForm } from 'redux-form';
-import { Trans, withNamespaces } from 'react-i18next';
+import { Trans, withTranslation } from 'react-i18next';
 import flow from 'lodash/flow';
 
 import { renderSelectField, renderRadioField, toNumber } from '../../../helpers/form';
 import { QUERY_LOG_INTERVALS_DAYS } from '../../../helpers/constants';
 
-const getIntervalFields = (processing, t, toNumber) =>
-    QUERY_LOG_INTERVALS_DAYS.map((interval) => {
-        const title =
-            interval === 1 ? t('interval_24_hour') : t('interval_days', { count: interval });
+const getIntervalFields = (processing, t, toNumber) => QUERY_LOG_INTERVALS_DAYS.map((interval) => {
+    const title = interval === 1 ? t('interval_24_hour') : t('interval_days', { count: interval });
 
-        return (
+    return (
             <Field
                 key={interval}
                 name="interval"
@@ -23,8 +21,8 @@ const getIntervalFields = (processing, t, toNumber) =>
                 normalize={toNumber}
                 disabled={processing}
             />
-        );
-    });
+    );
+});
 
 const Form = (props) => {
     const {
@@ -39,6 +37,16 @@ const Form = (props) => {
                     type="checkbox"
                     component={renderSelectField}
                     placeholder={t('query_log_enable')}
+                    disabled={processing}
+                />
+            </div>
+            <div className="form__group form__group--settings">
+                <Field
+                    name="anonymize_client_ip"
+                    type="checkbox"
+                    component={renderSelectField}
+                    placeholder={t('anonymize_client_ip')}
+                    subtitle={t('anonymize_client_ip_desc')}
                     disabled={processing}
                 />
             </div>
@@ -82,7 +90,7 @@ Form.propTypes = {
 };
 
 export default flow([
-    withNamespaces(),
+    withTranslation(),
     reduxForm({
         form: 'logConfigForm',
     }),

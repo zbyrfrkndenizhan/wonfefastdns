@@ -18,6 +18,8 @@ import (
 const defaultDiscoverTime = time.Second * 3
 const leaseExpireStatic = 1
 
+var webHandlersRegistered = false
+
 // Lease contains the necessary information about a DHCP lease
 // field ordering is important -- yaml fields will mirror ordering from here
 type Lease struct {
@@ -121,7 +123,9 @@ func Create(config ServerConfig) *Server {
 			return nil
 		}
 	}
-	if s.conf.HTTPRegister != nil {
+
+	if !webHandlersRegistered && s.conf.HTTPRegister != nil {
+		webHandlersRegistered = true
 		s.registerHandlers()
 	}
 
@@ -220,10 +224,9 @@ func (s *Server) setConfig(config ServerConfig) error {
 
 // Start will listen on port 67 and serve DHCP requests.
 func (s *Server) Start() error {
-
 	// TODO: don't close if interface and addresses are the same
 	if s.conn != nil {
-		s.closeConn()
+		_ = s.closeConn()
 	}
 
 	iface, err := net.InterfaceByName(s.conf.InterfaceName)
@@ -247,7 +250,7 @@ func (s *Server) Start() error {
 		if err != nil && !s.stopping {
 			log.Printf("dhcp4.Serve() returned with error: %s", err)
 		}
-		c.Close() // in case Serve() exits for other reason than listening socket closure
+		_ = c.Close() // in case Serve() exits for other reason than listening socket closure
 		s.running = false
 		s.cond.Signal()
 	}()
@@ -605,10 +608,10 @@ func (s *Server) handleDecline(p dhcp4.Packet, options dhcp4.Options) dhcp4.Pack
 // AddStaticLease adds a static lease (thread-safe)
 func (s *Server) AddStaticLease(l Lease) error {
 	if len(l.IP) != 4 {
-		return fmt.Errorf("Invalid IP")
+		return fmt.Errorf("invalid IP")
 	}
 	if len(l.HWAddr) != 6 {
-		return fmt.Errorf("Invalid MAC")
+		return fmt.Errorf("invalid MAC")
 	}
 	l.Expiry = time.Unix(leaseExpireStatic, 0)
 
@@ -616,6 +619,12 @@ func (s *Server) AddStaticLease(l Lease) error {
 
 	if s.findReservedHWaddr(l.IP) != nil {
 		err := s.rmDynamicLeaseWithIP(l.IP)
+		if err != nil {
+			s.leasesLock.Unlock()
+			return err
+		}
+	} else {
+		err := s.rmDynamicLeaseWithMAC(l.HWAddr)
 		if err != nil {
 			s.leasesLock.Unlock()
 			return err
@@ -633,9 +642,9 @@ func (s *Server) AddStaticLease(l Lease) error {
 func (s *Server) rmDynamicLeaseWithIP(ip net.IP) error {
 	var newLeases []*Lease
 	for _, lease := range s.leases {
-		if bytes.Equal(lease.IP.To4(), ip) {
+		if net.IP.Equal(lease.IP.To4(), ip) {
 			if lease.Expiry.Unix() == leaseExpireStatic {
-				return fmt.Errorf("Static lease with the same IP already exists")
+				return fmt.Errorf("static lease with the same IP already exists")
 			}
 			continue
 		}
@@ -646,11 +655,28 @@ func (s *Server) rmDynamicLeaseWithIP(ip net.IP) error {
 	return nil
 }
 
+// Remove a dynamic lease by IP address
+func (s *Server) rmDynamicLeaseWithMAC(mac net.HardwareAddr) error {
+	var newLeases []*Lease
+	for _, lease := range s.leases {
+		if bytes.Equal(lease.HWAddr, mac) {
+			if lease.Expiry.Unix() == leaseExpireStatic {
+				return fmt.Errorf("static lease with the same IP already exists")
+			}
+			s.unreserveIP(lease.IP)
+			continue
+		}
+		newLeases = append(newLeases, lease)
+	}
+	s.leases = newLeases
+	return nil
+}
+
 // Remove a lease
 func (s *Server) rmLease(l Lease) error {
 	var newLeases []*Lease
 	for _, lease := range s.leases {
-		if bytes.Equal(lease.IP.To4(), l.IP) {
+		if net.IP.Equal(lease.IP.To4(), l.IP) {
 			if !bytes.Equal(lease.HWAddr, l.HWAddr) ||
 				lease.Hostname != l.Hostname {
 				return fmt.Errorf("Lease not found")
@@ -667,17 +693,17 @@ func (s *Server) rmLease(l Lease) error {
 // RemoveStaticLease removes a static lease (thread-safe)
 func (s *Server) RemoveStaticLease(l Lease) error {
 	if len(l.IP) != 4 {
-		return fmt.Errorf("Invalid IP")
+		return fmt.Errorf("invalid IP")
 	}
 	if len(l.HWAddr) != 6 {
-		return fmt.Errorf("Invalid MAC")
+		return fmt.Errorf("invalid MAC")
 	}
 
 	s.leasesLock.Lock()
 
 	if s.findReservedHWaddr(l.IP) == nil {
 		s.leasesLock.Unlock()
-		return fmt.Errorf("Lease not found")
+		return fmt.Errorf("lease not found")
 	}
 
 	err := s.rmLease(l)

@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 
+	"github.com/AdguardTeam/AdGuardHome/util"
 	"github.com/AdguardTeam/dnsproxy/upstream"
 	"github.com/AdguardTeam/golibs/cache"
 	"github.com/AdguardTeam/golibs/log"
@@ -48,6 +50,13 @@ type Config struct {
 	CacheTime             uint `yaml:"cache_time"`              // Element's TTL (in minutes)
 
 	Rewrites []RewriteEntry `yaml:"rewrites"`
+
+	// Names of services to block (globally).
+	// Per-client settings can override this configuration.
+	BlockedServices []string `yaml:"blocked_services"`
+
+	// IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files
+	AutoHosts *util.AutoHosts `yaml:"-"`
 
 	// Called when the configuration is changed by HTTP request
 	ConfigModified func() `yaml:"-"`
@@ -135,6 +144,9 @@ const (
 
 	// ReasonRewrite - rewrite rule was applied
 	ReasonRewrite
+
+	// RewriteEtcHosts - rewrite by /etc/hosts rule
+	RewriteEtcHosts
 )
 
 var reasonNames = []string{
@@ -150,6 +162,7 @@ var reasonNames = []string{
 	"FilteredBlockedService",
 
 	"Rewrite",
+	"RewriteEtcHosts",
 }
 
 func (r Reason) String() string {
@@ -175,6 +188,7 @@ func (d *Dnsfilter) WriteDiskConfig(c *Config) {
 	d.confLock.Lock()
 	*c = d.Config
 	c.Rewrites = rewriteArrayDup(d.Config.Rewrites)
+	// BlockedServices
 	d.confLock.Unlock()
 }
 
@@ -228,6 +242,8 @@ func (d *Dnsfilter) filtersInitializer() {
 
 // Close - close the object
 func (d *Dnsfilter) Close() {
+	d.engineLock.Lock()
+	defer d.engineLock.Unlock()
 	d.reset()
 }
 
@@ -258,8 +274,13 @@ type Result struct {
 	FilterID   int64  `json:",omitempty"` // Filter ID the rule belongs to
 
 	// for ReasonRewrite:
-	CanonName string   `json:",omitempty"` // CNAME value
-	IPList    []net.IP `json:",omitempty"` // list of IP addresses
+	CanonName string `json:",omitempty"` // CNAME value
+
+	// for RewriteEtcHosts:
+	ReverseHost string `json:",omitempty"`
+
+	// for ReasonRewrite & RewriteEtcHosts:
+	IPList []net.IP `json:",omitempty"` // list of IP addresses
 
 	// for FilteredBlockedService:
 	ServiceName string `json:",omitempty"` // Name of the blocked service
@@ -291,9 +312,25 @@ func (d *Dnsfilter) CheckHost(host string, qtype uint16, setts *RequestFiltering
 	var result Result
 	var err error
 
-	result = d.processRewrites(host, qtype)
+	result = d.processRewrites(host)
 	if result.Reason == ReasonRewrite {
 		return result, nil
+	}
+
+	if d.Config.AutoHosts != nil {
+		ips := d.Config.AutoHosts.Process(host, qtype)
+		if ips != nil {
+			result.Reason = RewriteEtcHosts
+			result.IPList = ips
+			return result, nil
+		}
+
+		revHost := d.Config.AutoHosts.ProcessReverse(host, qtype)
+		if len(revHost) != 0 {
+			result.Reason = RewriteEtcHosts
+			result.ReverseHost = revHost + "."
+			return result, nil
+		}
 	}
 
 	// try filter lists first
@@ -353,11 +390,12 @@ func (d *Dnsfilter) CheckHost(host string, qtype uint16, setts *RequestFiltering
 
 // Process rewrites table
 // . Find CNAME for a domain name (exact match or by wildcard)
+//  . if found and CNAME equals to domain name - this is an exception;  exit
 //  . if found, set domain name to canonical name
 //  . repeat for the new domain name (Note: we return only the last CNAME)
 // . Find A or AAAA record for a domain name (exact match or by wildcard)
-//  . if found, return IP addresses
-func (d *Dnsfilter) processRewrites(host string, qtype uint16) Result {
+//  . if found, return IP addresses (both IPv4 and IPv6)
+func (d *Dnsfilter) processRewrites(host string) Result {
 	var res Result
 
 	d.confLock.RLock()
@@ -372,6 +410,12 @@ func (d *Dnsfilter) processRewrites(host string, qtype uint16) Result {
 	origHost := host
 	for len(rr) != 0 && rr[0].Type == dns.TypeCNAME {
 		log.Debug("Rewrite: CNAME for %s is %s", host, rr[0].Answer)
+
+		if host == rr[0].Answer { // "host == CNAME" is an exception
+			res.Reason = 0
+			return res
+		}
+
 		host = rr[0].Answer
 		_, ok := cnames[host]
 		if ok {
@@ -384,7 +428,7 @@ func (d *Dnsfilter) processRewrites(host string, qtype uint16) Result {
 	}
 
 	for _, r := range rr {
-		if r.Type != dns.TypeCNAME && r.Type == qtype {
+		if r.Type != dns.TypeCNAME {
 			res.IPList = append(res.IPList, r.IP)
 			log.Debug("Rewrite: A/AAAA for %s is %s", host, r.IP)
 		}
@@ -478,6 +522,7 @@ func createFilteringEngine(filters []Filter) (*filterlist.RuleStorage, *urlfilte
 // Initialize urlfilter objects
 func (d *Dnsfilter) initFiltering(allowFilters, blockFilters []Filter) error {
 	d.engineLock.Lock()
+	defer d.engineLock.Unlock()
 	d.reset()
 	rulesStorage, filteringEngine, err := createFilteringEngine(blockFilters)
 	if err != nil {
@@ -491,7 +536,9 @@ func (d *Dnsfilter) initFiltering(allowFilters, blockFilters []Filter) error {
 	d.filteringEngine = filteringEngine
 	d.rulesStorageWhite = rulesStorageWhite
 	d.filteringEngineWhite = filteringEngineWhite
-	d.engineLock.Unlock()
+
+	// Make sure that the OS reclaims memory as soon as possible
+	debug.FreeOSMemory()
 	log.Debug("initialized filtering engine")
 
 	return nil
@@ -592,6 +639,11 @@ func makeResult(rule rules.Rule, reason Reason) Result {
 	return res
 }
 
+// InitModule() - manually initialize blocked services map
+func InitModule() {
+	initBlockedServices()
+}
+
 // New creates properly initialized DNS Filter that is ready to be used
 func New(c *Config, blockFilters []Filter) *Dnsfilter {
 
@@ -631,6 +683,16 @@ func New(c *Config, blockFilters []Filter) *Dnsfilter {
 		d.prepareRewrites()
 	}
 
+	bsvcs := []string{}
+	for _, s := range d.BlockedServices {
+		if !BlockedSvcKnown(s) {
+			log.Debug("skipping unknown blocked-service '%s'", s)
+			continue
+		}
+		bsvcs = append(bsvcs, s)
+	}
+	d.BlockedServices = bsvcs
+
 	if blockFilters != nil {
 		err := d.initFiltering(nil, blockFilters)
 		if err != nil {
@@ -653,6 +715,7 @@ func (d *Dnsfilter) Start() {
 	if d.Config.HTTPRegister != nil { // for tests
 		d.registerSecurityHandlers()
 		d.registerRewritesHandlers()
+		d.registerBlockedServicesHandlers()
 	}
 }
 

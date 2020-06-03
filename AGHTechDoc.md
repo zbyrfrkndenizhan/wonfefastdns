@@ -1550,10 +1550,10 @@ Response:
 	200 OK
 
 	{
-		"enabled": true|false
-		"listen_address": "ip"
-		"listen_port": 12345
-		"auth_username": ""
+		"enabled": true|false,
+		"listen_address": "ip",
+		"listen_port": 12345,
+		"auth_username": "",
 		"auth_password": ""
 	}
 
@@ -1565,10 +1565,10 @@ Request:
 	POST /control/proxy_config
 
 	{
-		"enabled": true|false
-		"listen_address": "ip"
-		"listen_port": 12345
-		"auth_username": ""
+		"enabled": true|false,
+		"listen_address": "ip",
+		"listen_port": 12345,
+		"auth_username": "",
 		"auth_password": ""
 	}
 
@@ -1590,7 +1590,6 @@ Response:
 	{
 	"filters":[
 		{
-		"id":1
 		"enabled":true,
 		"url":"https://...",
 		"name":"...",
@@ -1609,7 +1608,7 @@ Request:
 	POST /control/proxy_filter/add
 
 	{
-		"name": "..."
+		"name": "...",
 		"url": "..."
 	}
 

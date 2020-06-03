@@ -39,7 +39,7 @@ type Config struct {
 	TLSCertData   []byte `yaml:"-"`
 	TLSKeyData    []byte `yaml:"-"`
 
-	HTTPClient *http.Client
+	HTTPClient *http.Client `yaml:"-"`
 
 	// Called when the configuration is changed by HTTP request
 	ConfigModified func() `yaml:"-"`
@@ -72,10 +72,20 @@ func (p *MITMProxy) Close() {
 	}
 }
 
+// Duplicate filter array
+func arrayFilterDup(f []filter) []filter {
+	nf := make([]filter, len(f))
+	for _, it := range f {
+		nf = append(nf, it)
+	}
+	return nf
+}
+
 // WriteDiskConfig - write configuration on disk
 func (p *MITMProxy) WriteDiskConfig(c *Config) {
 	p.confLock.Lock()
 	*c = p.conf
+	c.Filters = arrayFilterDup(p.conf.Filters)
 	p.confLock.Unlock()
 }
 
@@ -126,10 +136,15 @@ func (p *MITMProxy) create() error {
 	}
 	// c.ProxyConfig.APIHost
 
+	p.initFilters()
+
+	c.FiltersPaths = make(map[int]string)
 	for i, f := range p.conf.Filters {
-		if !f.Enabled {
+		if !f.Enabled &&
+			f.RuleCount != 0 { // loaded
 			continue
 		}
+
 		c.FiltersPaths[i] = p.filterPath(f)
 	}
 

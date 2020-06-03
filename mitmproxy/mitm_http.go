@@ -12,18 +12,19 @@ import (
 	"github.com/AdguardTeam/golibs/log"
 )
 
+// Print to log and set HTTP error message
+func httpError(r *http.Request, w http.ResponseWriter, code int, format string, args ...interface{}) {
+	text := fmt.Sprintf(format, args...)
+	log.Info("MITM: %s %s: %s", r.Method, r.URL, text)
+	http.Error(w, text, code)
+}
+
 type mitmConfigJSON struct {
 	Enabled    bool   `json:"enabled"`
 	ListenAddr string `json:"listen_address"`
 	ListenPort int    `json:"listen_port"`
 	UserName   string `json:"auth_username"`
 	Password   string `json:"auth_password"`
-}
-
-func httpError(r *http.Request, w http.ResponseWriter, code int, format string, args ...interface{}) {
-	text := fmt.Sprintf(format, args...)
-	log.Info("MITM: %s %s: %s", r.Method, r.URL, text)
-	http.Error(w, text, code)
 }
 
 func (p *MITMProxy) handleGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -129,6 +130,13 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.conf.ConfigModified()
+
+	p.Close()
+	err = p.Start()
+	if err != nil {
+		httpError(r, w, http.StatusInternalServerError, "start: %s", err)
+		return
+	}
 }
 
 func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +159,13 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.conf.ConfigModified()
+
+	p.Close()
+	err = p.Start()
+	if err != nil {
+		httpError(r, w, http.StatusInternalServerError, "start: %s", err)
+		return
+	}
 }
 
 // Initialize web handlers

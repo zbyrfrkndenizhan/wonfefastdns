@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 // Filter object type
 type filter struct {
-	ID          uint64    `yaml:"-"`
+	ID          uint64    `yaml:"id"`
 	Enabled     bool      `yaml:"enabled"`
 	Name        string    `yaml:"name"`
 	URL         string    `yaml:"url"`
@@ -30,6 +31,26 @@ func (p *MITMProxy) filterPath(f filter) string {
 // Get next filter ID
 func (p *MITMProxy) nextFilterID() uint64 {
 	return uint64(time.Now().Unix())
+}
+
+func (p *MITMProxy) initFilters() {
+	for i := range p.conf.Filters {
+		f := &p.conf.Filters[i]
+		fname := p.filterPath(*f)
+		st, err := os.Stat(fname)
+		if err != nil {
+			log.Error("MITM: os.Stat: %s %s", fname, err)
+			continue
+		}
+		f.LastUpdated = st.ModTime()
+
+		body, err := ioutil.ReadFile(fname)
+		if err != nil {
+			log.Error("MITM: ioutil.ReadFile: %s %s", fname, err)
+			continue
+		}
+		_ = parseFilter(f, body)
+	}
 }
 
 // Download data via HTTP
@@ -85,11 +106,14 @@ func (p *MITMProxy) downloadFilter(f *filter) error {
 	if err != nil {
 		return err
 	}
+
 	fname := p.filterPath(*f)
 	err = file.SafeWrite(fname, body)
 	if err != nil {
 		return err
 	}
+
+	log.Debug("MITM: saved filter %s at %s", f.URL, fname)
 	f.LastUpdated = time.Now()
 	return nil
 }

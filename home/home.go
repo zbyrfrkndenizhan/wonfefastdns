@@ -297,19 +297,14 @@ func run(args options) {
 		Context.tls.Start()
 		Context.autoHosts.Start()
 
-		if config.MITM.Enabled {
-			// config.MITM.HTTPSHostname =
-			// config.MITM.TLSCertData =
-			// config.MITM.TLSKeyData =
-			config.MITM.HTTPClient = Context.client
-			config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
-			config.MITM.ConfigModified = onConfigModified
-			config.MITM.HTTPRegister = httpRegister
-			Context.mitmProxy = mitmproxy.New(config.MITM)
-			if Context.mitmProxy == nil {
-				log.Fatal("")
-			}
-		}
+		// config.MITM.HTTPSHostname =
+		// config.MITM.TLSCertData =
+		// config.MITM.TLSKeyData =
+		config.MITM.HTTPClient = Context.client
+		config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
+		config.MITM.ConfigModified = onConfigModified
+		config.MITM.HTTPRegister = httpRegister
+		Context.mitmProxy = mitmproxy.New(config.MITM)
 
 		go func() {
 			err := startDNSServer()

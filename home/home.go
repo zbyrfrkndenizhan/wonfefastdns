@@ -311,14 +311,14 @@ func run(args options) {
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			if Context.mitmProxy != nil {
-				err = Context.mitmProxy.Start()
-				if err != nil {
-					log.Fatal(err)
-				}
-			}
 		}()
+
+		if Context.mitmProxy != nil {
+			err = Context.mitmProxy.Start()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 
 		err = startDHCPServer()
 		if err != nil {

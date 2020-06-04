@@ -297,10 +297,8 @@ func run(args options) {
 		Context.tls.Start()
 		Context.autoHosts.Start()
 
-		// config.MITM.HTTPSHostname =
-		// config.MITM.TLSCertData =
-		// config.MITM.TLSKeyData =
 		config.MITM.HTTPClient = Context.client
+		config.MITM.CertDir = Context.getDataDir()
 		config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
 		config.MITM.ConfigModified = onConfigModified
 		config.MITM.HTTPRegister = httpRegister

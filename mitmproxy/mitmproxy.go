@@ -4,15 +4,17 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/AdguardTeam/golibs/log"
-	"github.com/AdguardTeam/gomitmproxy"
 	"github.com/AdguardTeam/gomitmproxy/mitm"
 	"github.com/AdguardTeam/urlfilter/proxy"
 )
@@ -35,9 +37,11 @@ type Config struct {
 	Filters   []filter `yaml:"proxy_filters"`
 
 	// TLS:
-	HTTPSHostname string `yaml:"-"`
-	TLSCertData   []byte `yaml:"-"`
-	TLSKeyData    []byte `yaml:"-"`
+	CertDir      string `yaml:"-"`
+	certFileName string
+	pkeyFileName string
+	certData     []byte
+	keyData      []byte
 
 	HTTPClient *http.Client `yaml:"-"`
 
@@ -54,7 +58,7 @@ func New(conf Config) *MITMProxy {
 	p.conf = conf
 	err := p.create()
 	if err != nil {
-		log.Error("%s", err)
+		log.Error("MITM: %s", err)
 		return nil
 	}
 	if p.conf.HTTPRegister != nil {
@@ -128,13 +132,28 @@ func (p *MITMProxy) create() error {
 	c.ProxyConfig.Username = p.conf.UserName
 	c.ProxyConfig.Password = p.conf.Password
 
-	if len(p.conf.TLSCertData) != 0 {
-		err := p.prepareTLSConf(&c.ProxyConfig)
+	p.conf.certFileName = filepath.Join(p.conf.CertDir, "/http_proxy.crt")
+	p.conf.pkeyFileName = filepath.Join(p.conf.CertDir, "/http_proxy.key")
+	p.conf.certData, err = ioutil.ReadFile(p.conf.certFileName)
+	if err != nil {
+		log.Debug("%s", err)
+	}
+	var err2 error
+	p.conf.keyData, err2 = ioutil.ReadFile(p.conf.pkeyFileName)
+	if err2 != nil {
+		log.Debug("%s", err2)
+	}
+	if err != nil || err2 != nil {
+		err = p.createRootCert()
 		if err != nil {
 			return err
 		}
 	}
-	// c.ProxyConfig.APIHost
+
+	p.proxy.ProxyConfig.MITMConfig, err = p.prepareMITMConfig()
+	if err != nil {
+		return err
+	}
 
 	p.initFilters()
 
@@ -155,34 +174,48 @@ func (p *MITMProxy) create() error {
 	return nil
 }
 
-// Fill TLSConfig & MITMConfig objects
-func (p *MITMProxy) prepareTLSConf(pc *gomitmproxy.Config) error {
-	tlsCert, err := tls.X509KeyPair(p.conf.TLSCertData, p.conf.TLSKeyData)
+// Create Root certificate and store it on disk
+func (p *MITMProxy) createRootCert() error {
+	cert, key, err := mitm.NewAuthority("AdGuardHome Root", "AdGuard", 365*24*time.Hour)
 	if err != nil {
-		return fmt.Errorf("failed to load root CA: %v", err)
+		return err
+	}
+
+	certPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+	err = ioutil.WriteFile(p.conf.certFileName, certPem, 0644)
+	if err != nil {
+		return err
+	}
+
+	keyPem := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	err = ioutil.WriteFile(p.conf.pkeyFileName, keyPem, 0644)
+	if err != nil {
+		return err
+	}
+
+	log.Debug("MITM: Created root certificate and key: %s, %s", p.conf.certFileName, p.conf.pkeyFileName)
+	return nil
+}
+
+// Fill TLSConfig & MITMConfig objects
+func (p *MITMProxy) prepareMITMConfig() (*mitm.Config, error) {
+	tlsCert, err := tls.X509KeyPair(p.conf.certData, p.conf.keyData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load root CA: %v", err)
 	}
 	privateKey := tlsCert.PrivateKey.(*rsa.PrivateKey)
 
 	x509c, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
-		return fmt.Errorf("invalid certificate: %v", err)
+		return nil, fmt.Errorf("invalid certificate: %v", err)
 	}
 
 	mitmConfig, err := mitm.NewConfig(x509c, privateKey, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create MITM config: %v", err)
+		return nil, fmt.Errorf("failed to create MITM config: %v", err)
 	}
 
 	mitmConfig.SetValidity(time.Hour * 24 * 7) // generate certs valid for 7 days
 	mitmConfig.SetOrganization("AdGuard")      // cert organization
-	cert, err := mitmConfig.GetOrCreateCert(p.conf.HTTPSHostname)
-	if err != nil {
-		return fmt.Errorf("failed to generate HTTPS proxy certificate for %s: %v", p.conf.HTTPSHostname, err)
-	}
-
-	pc.TLSConfig.Certificates = []tls.Certificate{*cert}
-	pc.TLSConfig.ServerName = p.conf.HTTPSHostname
-	pc.MITMConfig = mitmConfig
-	// pc.MITMExceptions
-	return nil
+	return mitmConfig, nil
 }

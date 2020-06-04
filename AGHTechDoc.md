@@ -1553,6 +1553,7 @@ Response:
 		"enabled": true|false,
 		"listen_address": "ip",
 		"listen_port": 12345,
+
 		"auth_username": "",
 		"auth_password": ""
 	}
@@ -1568,8 +1569,12 @@ Request:
 		"enabled": true|false,
 		"listen_address": "ip",
 		"listen_port": 12345,
+
 		"auth_username": "",
-		"auth_password": ""
+		"auth_password": "",
+
+		"cert_data":"...", // user-specified certificate.  "": generate new
+		"pkey_data":"...",
 	}
 
 Response:

@@ -134,6 +134,7 @@ func (p *MITMProxy) addFilter(nf filter) error {
 		return err
 	}
 	p.conf.Filters = append(p.conf.Filters, nf)
+	log.Debug("MITM: added filter %s", nf.URL)
 	return nil
 }
 
@@ -152,5 +153,6 @@ func (p *MITMProxy) deleteFilter(url string) bool {
 		return false
 	}
 	p.conf.Filters = nf
+	log.Debug("MITM: removed filter %s", url)
 	return true
 }

@@ -23,8 +23,12 @@ type mitmConfigJSON struct {
 	Enabled    bool   `json:"enabled"`
 	ListenAddr string `json:"listen_address"`
 	ListenPort int    `json:"listen_port"`
-	UserName   string `json:"auth_username"`
-	Password   string `json:"auth_password"`
+
+	UserName string `json:"auth_username"`
+	Password string `json:"auth_password"`
+
+	CertData string `json:"cert_data"`
+	PKeyData string `json:"pkey_data"`
 }
 
 func (p *MITMProxy) handleGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -54,16 +58,41 @@ func (p *MITMProxy) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
+
+	if !((len(req.CertData) != 0 && len(req.PKeyData) != 0) ||
+		(len(req.CertData) == 0 && len(req.PKeyData) == 0)) {
+		httpError(r, w, http.StatusBadRequest, "certificate & private key must be both empty or specified")
+		return
+	}
+
 	p.confLock.Lock()
+	if len(req.CertData) != 0 {
+		err = p.storeCert([]byte(req.CertData), []byte(req.PKeyData))
+		if err != nil {
+			httpError(r, w, http.StatusInternalServerError, "%s", err)
+			p.confLock.Unlock()
+			return
+		}
+		p.conf.RegenCert = false
+	} else {
+		p.conf.RegenCert = true
+	}
 	p.conf.Enabled = req.Enabled
 	p.conf.ListenAddr = net.JoinHostPort(req.ListenAddr, strconv.Itoa(req.ListenPort))
 	p.conf.UserName = req.UserName
 	p.conf.Password = req.Password
 	p.confLock.Unlock()
+
 	p.conf.ConfigModified()
 
 	p.Close()
 	err = p.create()
+	if err != nil {
+		httpError(r, w, http.StatusInternalServerError, "%s", err)
+		return
+	}
+
+	err = p.Start()
 	if err != nil {
 		httpError(r, w, http.StatusInternalServerError, "%s", err)
 		return

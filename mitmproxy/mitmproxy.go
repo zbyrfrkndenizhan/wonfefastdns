@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AdguardTeam/golibs/file"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/AdguardTeam/gomitmproxy/mitm"
 	"github.com/AdguardTeam/urlfilter/proxy"
@@ -30,18 +31,20 @@ type MITMProxy struct {
 type Config struct {
 	Enabled    bool   `yaml:"enabled"`
 	ListenAddr string `yaml:"listen_address"`
-	UserName   string `yaml:"auth_username"`
-	Password   string `yaml:"auth_password"`
+
+	UserName string `yaml:"auth_username"`
+	Password string `yaml:"auth_password"`
 
 	FilterDir string   `yaml:"-"`
 	Filters   []filter `yaml:"proxy_filters"`
 
 	// TLS:
-	CertDir      string `yaml:"-"`
+	RegenCert    bool   `yaml:"regenerate_cert"` // Regenerate certificate on cert loading failure
+	CertDir      string `yaml:"-"`               // Directory where Root certificate & pkey is stored
 	certFileName string
 	pkeyFileName string
 	certData     []byte
-	keyData      []byte
+	pkeyData     []byte
 
 	HTTPClient *http.Client `yaml:"-"`
 
@@ -55,15 +58,23 @@ type Config struct {
 // New - create a new instance of the query log
 func New(conf Config) *MITMProxy {
 	p := MITMProxy{}
+
 	p.conf = conf
+	p.conf.certFileName = filepath.Join(p.conf.CertDir, "/http_proxy.crt")
+	p.conf.pkeyFileName = filepath.Join(p.conf.CertDir, "/http_proxy.key")
+
+	p.initFilters()
+
+	if p.conf.HTTPRegister != nil {
+		p.initWeb()
+	}
+
 	err := p.create()
 	if err != nil {
 		log.Error("MITM: %s", err)
 		return nil
 	}
-	if p.conf.HTTPRegister != nil {
-		p.initWeb()
-	}
+
 	return &p
 }
 
@@ -79,9 +90,7 @@ func (p *MITMProxy) Close() {
 // Duplicate filter array
 func arrayFilterDup(f []filter) []filter {
 	nf := make([]filter, len(f))
-	for _, it := range f {
-		nf = append(nf, it)
-	}
+	copy(nf, f)
 	return nf
 }
 
@@ -132,30 +141,37 @@ func (p *MITMProxy) create() error {
 	c.ProxyConfig.Username = p.conf.UserName
 	c.ProxyConfig.Password = p.conf.Password
 
-	p.conf.certFileName = filepath.Join(p.conf.CertDir, "/http_proxy.crt")
-	p.conf.pkeyFileName = filepath.Join(p.conf.CertDir, "/http_proxy.key")
-	p.conf.certData, err = ioutil.ReadFile(p.conf.certFileName)
+	err = p.loadCert()
 	if err != nil {
+		if !p.conf.RegenCert {
+			return err
+		}
 		log.Debug("%s", err)
-	}
-	var err2 error
-	p.conf.keyData, err2 = ioutil.ReadFile(p.conf.pkeyFileName)
-	if err2 != nil {
-		log.Debug("%s", err2)
-	}
-	if err != nil || err2 != nil {
+
+		// certificate or private key file doesn't exist - generate new
 		err = p.createRootCert()
 		if err != nil {
 			return err
 		}
 	}
 
-	p.proxy.ProxyConfig.MITMConfig, err = p.prepareMITMConfig()
+	c.ProxyConfig.MITMConfig, err = p.prepareMITMConfig()
 	if err != nil {
-		return err
-	}
+		if !p.conf.RegenCert {
+			return err
+		}
 
-	p.initFilters()
+		// certificate or private key is invalid - generate new
+		err = p.createRootCert()
+		if err != nil {
+			return err
+		}
+
+		c.ProxyConfig.MITMConfig, err = p.prepareMITMConfig()
+		if err != nil {
+			return err
+		}
+	}
 
 	c.FiltersPaths = make(map[int]string)
 	for i, f := range p.conf.Filters {
@@ -174,32 +190,57 @@ func (p *MITMProxy) create() error {
 	return nil
 }
 
-// Create Root certificate and store it on disk
+// Load cert and pkey from file
+func (p *MITMProxy) loadCert() error {
+	var err error
+	p.conf.certData, err = ioutil.ReadFile(p.conf.certFileName)
+	if err != nil {
+		return err
+	}
+	p.conf.pkeyData, err = ioutil.ReadFile(p.conf.pkeyFileName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Create Root certificate and pkey and store it on disk
 func (p *MITMProxy) createRootCert() error {
 	cert, key, err := mitm.NewAuthority("AdGuardHome Root", "AdGuard", 365*24*time.Hour)
 	if err != nil {
 		return err
 	}
 
-	certPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
-	err = ioutil.WriteFile(p.conf.certFileName, certPem, 0644)
+	p.conf.certData = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+	p.conf.pkeyData = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	log.Debug("MITM: Created root certificate and key")
+
+	err = p.storeCert(p.conf.certData, p.conf.pkeyData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Store cert & pkey on disk
+func (p *MITMProxy) storeCert(certData []byte, pkeyData []byte) error {
+	err := file.SafeWrite(p.conf.certFileName, certData)
 	if err != nil {
 		return err
 	}
 
-	keyPem := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	err = ioutil.WriteFile(p.conf.pkeyFileName, keyPem, 0644)
+	err = file.SafeWrite(p.conf.pkeyFileName, pkeyData)
 	if err != nil {
 		return err
 	}
 
-	log.Debug("MITM: Created root certificate and key: %s, %s", p.conf.certFileName, p.conf.pkeyFileName)
+	log.Debug("MITM: stored root certificate and key: %s, %s", p.conf.certFileName, p.conf.pkeyFileName)
 	return nil
 }
 
 // Fill TLSConfig & MITMConfig objects
 func (p *MITMProxy) prepareMITMConfig() (*mitm.Config, error) {
-	tlsCert, err := tls.X509KeyPair(p.conf.certData, p.conf.keyData)
+	tlsCert, err := tls.X509KeyPair(p.conf.certData, p.conf.pkeyData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load root CA: %v", err)
 	}

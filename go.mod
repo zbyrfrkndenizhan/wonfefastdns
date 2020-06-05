@@ -15,7 +15,6 @@ require (
 	github.com/krolaw/dhcp4 v0.0.0-20180925202202-7cead472c414
 	github.com/miekg/dns v1.1.29
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/common v0.7.0 // indirect
 	github.com/sparrc/go-ping v0.0.0-20190613174326-4e5b6552494c
 	github.com/stretchr/testify v1.5.1
 	go.etcd.io/bbolt v1.3.4

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -180,9 +181,9 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.confLock.Lock()
-	result := p.deleteFilter(req.URL)
+	removed := p.deleteFilter(req.URL)
 	p.confLock.Unlock()
-	if !result {
+	if removed == nil {
 		httpError(r, w, http.StatusInternalServerError, "No filter with such URL")
 		return
 	}
@@ -190,6 +191,12 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 	p.conf.ConfigModified()
 
 	p.Close()
+
+	err = os.Remove(p.filterPath(*removed))
+	if err != nil {
+		log.Error("os.Remove: %s", err)
+	}
+
 	err = p.Start()
 	if err != nil {
 		httpError(r, w, http.StatusInternalServerError, "start: %s", err)

@@ -13,6 +13,8 @@ import (
 	"github.com/AdguardTeam/golibs/log"
 )
 
+const updateIntervalHours = 24
+
 // Filter object type
 type filter struct {
 	ID          uint64    `yaml:"id"`
@@ -21,6 +23,9 @@ type filter struct {
 	URL         string    `yaml:"url"`
 	RuleCount   uint64    `yaml:"-"`
 	LastUpdated time.Time `yaml:"-"`
+
+	newID      uint64
+	nextUpdate time.Time
 }
 
 // Get filter file name
@@ -43,6 +48,7 @@ func (p *MITMProxy) initFilters() {
 			continue
 		}
 		f.LastUpdated = st.ModTime()
+		f.nextUpdate = f.LastUpdated.Add(updateIntervalHours * time.Hour)
 
 		body, err := ioutil.ReadFile(fname)
 		if err != nil {
@@ -139,20 +145,101 @@ func (p *MITMProxy) addFilter(nf filter) error {
 }
 
 // Remove filter
-func (p *MITMProxy) deleteFilter(url string) bool {
+func (p *MITMProxy) deleteFilter(url string) *filter {
 	nf := []filter{}
-	found := false
+	var found *filter
 	for _, f := range p.conf.Filters {
 		if f.URL == url {
-			found = true
+			found = &f
 			continue
 		}
 		nf = append(nf, f)
 	}
-	if !found {
-		return false
+	if found == nil {
+		return nil
 	}
 	p.conf.Filters = nf
 	log.Debug("MITM: removed filter %s", url)
-	return true
+	return found
+}
+
+func (p *MITMProxy) updateFilters() {
+	period := 24 * time.Hour
+	for {
+		if !p.conf.Enabled {
+			time.Sleep(period)
+			continue
+		}
+
+		// if !dns.isRunning()
+		//  sleep
+
+		var uf filter
+		now := time.Now()
+		p.confLock.Lock()
+		for i := range p.conf.Filters {
+			f := &p.conf.Filters[i]
+
+			if f.Enabled &&
+				f.nextUpdate.Unix() <= now.Unix() {
+
+				f.nextUpdate = now.Add(updateIntervalHours * time.Hour)
+				uf = *f
+				break
+			}
+		}
+		p.confLock.Unlock()
+
+		if uf.ID == 0 {
+
+			if p.filtersUpdated {
+				p.filtersUpdated = false
+				p.Close()
+
+				p.confLock.Lock()
+				for i := range p.conf.Filters {
+					f := &p.conf.Filters[i]
+
+					if f.newID != 0 && f.newID != f.ID {
+						name := p.filterPath(*f)
+						newName := p.filterPath(filter{ID: f.newID})
+						err := os.Rename(newName, name)
+						if err != nil {
+							log.Error("MITM: os.Rename:%s", err)
+						}
+						f.newID = 0
+					}
+				}
+
+				err := p.Start()
+				if err != nil {
+					log.Debug("%s", err)
+				}
+			}
+
+			time.Sleep(period)
+			continue
+		}
+
+		uf.ID = p.nextFilterID()
+		err := p.downloadFilter(&uf)
+		if err != nil {
+			continue
+		}
+
+		p.confLock.Lock()
+		for i := range p.conf.Filters {
+			f := &p.conf.Filters[i]
+
+			if f.URL == uf.URL {
+				f.newID = uf.ID
+				f.RuleCount = uf.RuleCount
+				f.LastUpdated = uf.LastUpdated
+
+				p.filtersUpdated = true
+				break
+			}
+		}
+		p.confLock.Unlock()
+	}
 }

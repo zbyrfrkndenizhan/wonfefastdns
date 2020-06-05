@@ -25,6 +25,9 @@ type MITMProxy struct {
 	proxy    *proxy.Server
 	conf     Config
 	confLock sync.Mutex
+
+	filtersUpdated    bool
+	updateTaskRunning bool
 }
 
 // Config - module configuration
@@ -107,6 +110,12 @@ func (p *MITMProxy) Start() error {
 	if !p.conf.Enabled {
 		return nil
 	}
+
+	if !p.updateTaskRunning {
+		p.updateTaskRunning = true
+		go p.updateFilters()
+	}
+
 	err := p.proxy.Start()
 	if err != nil {
 		return err

@@ -17,15 +17,15 @@ const updateIntervalHours = 24
 
 // Filter object type
 type filter struct {
-	ID          uint64    `yaml:"id"`
-	Enabled     bool      `yaml:"enabled"`
-	Name        string    `yaml:"name"`
-	URL         string    `yaml:"url"`
-	RuleCount   uint64    `yaml:"-"`
-	LastUpdated time.Time `yaml:"-"`
+	ID      uint64 `yaml:"id"`
+	Enabled bool   `yaml:"enabled"`
+	Name    string `yaml:"name"`
+	URL     string `yaml:"url"`
 
-	newID      uint64
-	nextUpdate time.Time
+	ruleCount   uint64    `yaml:"-"`
+	lastUpdated time.Time `yaml:"-"`
+	newID       uint64
+	nextUpdate  time.Time
 }
 
 // Get filter file name
@@ -47,8 +47,8 @@ func (p *MITMProxy) initFilters() {
 			log.Error("MITM: os.Stat: %s %s", fname, err)
 			continue
 		}
-		f.LastUpdated = st.ModTime()
-		f.nextUpdate = f.LastUpdated.Add(updateIntervalHours * time.Hour)
+		f.lastUpdated = st.ModTime()
+		f.nextUpdate = f.lastUpdated.Add(updateIntervalHours * time.Hour)
 
 		body, err := ioutil.ReadFile(fname)
 		if err != nil {
@@ -94,7 +94,7 @@ func parseFilter(f *filter, body []byte) error {
 		rulesCount++
 	}
 
-	f.RuleCount = uint64(rulesCount)
+	f.ruleCount = uint64(rulesCount)
 	return nil
 }
 
@@ -120,7 +120,7 @@ func (p *MITMProxy) downloadFilter(f *filter) error {
 	}
 
 	log.Debug("MITM: saved filter %s at %s", f.URL, fname)
-	f.LastUpdated = time.Now()
+	f.lastUpdated = time.Now()
 	return nil
 }
 
@@ -196,6 +196,7 @@ func (p *MITMProxy) updateFilters() {
 				p.filtersUpdated = false
 				p.Close()
 
+				nUpdated := 0
 				p.confLock.Lock()
 				for i := range p.conf.Filters {
 					f := &p.conf.Filters[i]
@@ -208,13 +209,19 @@ func (p *MITMProxy) updateFilters() {
 							log.Error("MITM: os.Rename:%s", err)
 						}
 						f.newID = 0
+						nUpdated++
 					}
 				}
 
-				err := p.Start()
+				log.Debug("MITM: %d filters were updated", nUpdated)
+
+				err := p.Restart()
 				if err != nil {
 					log.Debug("%s", err)
 				}
+
+			} else {
+				log.Debug("MITM: no filters were updated")
 			}
 
 			time.Sleep(period)
@@ -233,8 +240,8 @@ func (p *MITMProxy) updateFilters() {
 
 			if f.URL == uf.URL {
 				f.newID = uf.ID
-				f.RuleCount = uf.RuleCount
-				f.LastUpdated = uf.LastUpdated
+				f.ruleCount = uf.ruleCount
+				f.lastUpdated = uf.lastUpdated
 
 				p.filtersUpdated = true
 				break

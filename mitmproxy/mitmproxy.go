@@ -124,6 +124,15 @@ func (p *MITMProxy) Start() error {
 	return nil
 }
 
+// Restart - restart proxy server after Close()
+func (p *MITMProxy) Restart() error {
+	err := p.create()
+	if err != nil {
+		return err
+	}
+	return p.Start()
+}
+
 // Create a gomitmproxy object
 func (p *MITMProxy) create() error {
 	if !p.conf.Enabled {
@@ -185,8 +194,8 @@ func (p *MITMProxy) create() error {
 
 	c.FiltersPaths = make(map[int]string)
 	for i, f := range p.conf.Filters {
-		if !f.Enabled &&
-			f.RuleCount != 0 { // loaded
+		if !f.Enabled ||
+			f.ruleCount == 0 { // not loaded
 			continue
 		}
 

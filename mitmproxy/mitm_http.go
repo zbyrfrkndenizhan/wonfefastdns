@@ -87,13 +87,7 @@ func (p *MITMProxy) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	p.conf.ConfigModified()
 
 	p.Close()
-	err = p.create()
-	if err != nil {
-		httpError(r, w, http.StatusInternalServerError, "%s", err)
-		return
-	}
-
-	err = p.Start()
+	err = p.Restart()
 	if err != nil {
 		httpError(r, w, http.StatusInternalServerError, "%s", err)
 		return
@@ -119,8 +113,8 @@ func (p *MITMProxy) handleFilterStatus(w http.ResponseWriter, r *http.Request) {
 			Enabled:     f.Enabled,
 			Name:        f.Name,
 			URL:         f.URL,
-			RuleCount:   f.RuleCount,
-			LastUpdated: f.LastUpdated,
+			RuleCount:   f.ruleCount,
+			LastUpdated: f.lastUpdated,
 		}
 		resp.Filters = append(resp.Filters, fj)
 	}
@@ -162,7 +156,7 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	p.conf.ConfigModified()
 
 	p.Close()
-	err = p.Start()
+	err = p.Restart()
 	if err != nil {
 		httpError(r, w, http.StatusInternalServerError, "start: %s", err)
 		return
@@ -197,7 +191,7 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 		log.Error("os.Remove: %s", err)
 	}
 
-	err = p.Start()
+	err = p.Restart()
 	if err != nil {
 		httpError(r, w, http.StatusInternalServerError, "start: %s", err)
 		return

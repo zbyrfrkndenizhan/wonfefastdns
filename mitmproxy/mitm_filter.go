@@ -163,6 +163,16 @@ func (p *MITMProxy) deleteFilter(url string) *filter {
 	return found
 }
 
+// Periodically update filters
+// Algorithm:
+// . Get next filter to update:
+//  . Download data from Internet and store on disk (in a new file)
+//  . Update filter's properties
+//  . Repeat for next filter
+// (All filters are downloaded)
+// . Stop the proxy
+// . Rename "new file name" -> "old file name"
+// . Restart the proxy
 func (p *MITMProxy) updateFilters() {
 	period := 24 * time.Hour
 	for {

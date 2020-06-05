@@ -65,14 +65,14 @@ func New(conf Config) *MITMProxy {
 
 	p.initFilters()
 
-	if p.conf.HTTPRegister != nil {
-		p.initWeb()
-	}
-
 	err := p.create()
 	if err != nil {
 		log.Error("MITM: %s", err)
 		return nil
+	}
+
+	if p.conf.HTTPRegister != nil {
+		p.initWeb()
 	}
 
 	return &p
@@ -122,6 +122,7 @@ func (p *MITMProxy) create() error {
 	}
 
 	c := proxy.Config{}
+	c.ProxyConfig.APIHost = "adguardhome.api"
 	addr, port, err := net.SplitHostPort(p.conf.ListenAddr)
 	if err != nil {
 		return fmt.Errorf("net.SplitHostPort: %s", err)

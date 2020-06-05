@@ -267,6 +267,16 @@ func run(args options) {
 		log.Fatalf("Cannot create DNS data dir at %s: %s", Context.getDataDir(), err)
 	}
 
+	config.MITM.HTTPClient = Context.client
+	config.MITM.CertDir = Context.getDataDir()
+	config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
+	config.MITM.ConfigModified = onConfigModified
+	config.MITM.HTTPRegister = httpRegister
+	Context.mitmProxy = mitmproxy.New(config.MITM)
+	if Context.mitmProxy == nil {
+		os.Exit(1)
+	}
+
 	sessFilename := filepath.Join(Context.getDataDir(), "sessions.db")
 	Context.auth = InitAuth(sessFilename, config.Users, config.WebSessionTTLHours*60*60)
 	if Context.auth == nil {
@@ -296,13 +306,6 @@ func run(args options) {
 		}
 		Context.tls.Start()
 		Context.autoHosts.Start()
-
-		config.MITM.HTTPClient = Context.client
-		config.MITM.CertDir = Context.getDataDir()
-		config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
-		config.MITM.ConfigModified = onConfigModified
-		config.MITM.HTTPRegister = httpRegister
-		Context.mitmProxy = mitmproxy.New(config.MITM)
 
 		go func() {
 			err := startDNSServer()
@@ -466,6 +469,7 @@ func cleanup() {
 		Context.auth.Close()
 		Context.auth = nil
 	}
+
 	if Context.mitmProxy != nil {
 		Context.mitmProxy.Close()
 		Context.mitmProxy = nil

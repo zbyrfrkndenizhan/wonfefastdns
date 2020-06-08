@@ -10,6 +10,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dhcpd"
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/AdguardTeam/AdGuardHome/mitmproxy"
 	"github.com/AdguardTeam/AdGuardHome/querylog"
 	"github.com/AdguardTeam/AdGuardHome/stats"
@@ -65,6 +66,8 @@ type configuration struct {
 	Filters          []filter `yaml:"filters"`
 	WhitelistFilters []filter `yaml:"whitelist_filters"`
 	UserRules        []string `yaml:"user_rules"`
+
+	ProxyFilters []filters.Filter `yaml:"proxy_filters"`
 
 	DHCP dhcpd.ServerConfig `yaml:"dhcp"`
 

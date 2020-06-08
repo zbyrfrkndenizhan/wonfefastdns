@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/AdguardTeam/AdGuardHome/util"
 
 	"github.com/joomcode/errorx"
@@ -69,6 +70,7 @@ type homeContext struct {
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
 	filters    Filtering            // DNS filtering module
+	filters2   filters.Filters      // DNS filtering module
 	web        *Web                 // Web (HTTP, HTTPS) module
 	tls        *TLSMod              // TLS module
 	autoHosts  util.AutoHosts       // IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files
@@ -269,11 +271,17 @@ func run(args options) {
 		log.Fatalf("Cannot create DNS data dir at %s: %s", Context.getDataDir(), err)
 	}
 
+	fconf := filters.Conf{}
+	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters")
+	fconf.Proxylist = config.ProxyFilters
+	fconf.HTTPClient = Context.client
+	Context.filters2.Init(fconf)
+
 	config.MITM.HTTPClient = Context.client
 	config.MITM.CertDir = Context.getDataDir()
-	config.MITM.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
 	config.MITM.ConfigModified = onConfigModified
 	config.MITM.HTTPRegister = httpRegister
+	config.MITM.Filter = &Context.filters2
 	Context.mitmProxy = mitmproxy.New(config.MITM)
 	if Context.mitmProxy == nil {
 		os.Exit(1)
@@ -308,6 +316,8 @@ func run(args options) {
 		}
 		Context.tls.Start()
 		Context.autoHosts.Start()
+
+		Context.filters2.Start()
 
 		go func() {
 			err := startDNSServer()

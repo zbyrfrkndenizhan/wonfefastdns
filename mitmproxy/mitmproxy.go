@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/AdguardTeam/golibs/file"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/AdguardTeam/gomitmproxy/mitm"
@@ -26,7 +27,6 @@ type MITMProxy struct {
 	conf     Config
 	confLock sync.Mutex
 
-	filtersUpdated    bool
 	updateTaskRunning bool
 }
 
@@ -38,9 +38,6 @@ type Config struct {
 	UserName string `yaml:"auth_username"`
 	Password string `yaml:"auth_password"`
 
-	FilterDir string   `yaml:"-"`
-	Filters   []filter `yaml:"proxy_filters"`
-
 	// TLS:
 	RegenCert    bool   `yaml:"regenerate_cert"` // Regenerate certificate on cert loading failure
 	CertDir      string `yaml:"-"`               // Directory where Root certificate & pkey is stored
@@ -49,7 +46,8 @@ type Config struct {
 	certData     []byte
 	pkeyData     []byte
 
-	HTTPClient *http.Client `yaml:"-"`
+	Filter     *filters.Filters `yaml:"-"`
+	HTTPClient *http.Client     `yaml:"-"`
 
 	// Called when the configuration is changed by HTTP request
 	ConfigModified func() `yaml:"-"`
@@ -66,8 +64,6 @@ func New(conf Config) *MITMProxy {
 	p.conf.certFileName = filepath.Join(p.conf.CertDir, "/http_proxy.crt")
 	p.conf.pkeyFileName = filepath.Join(p.conf.CertDir, "/http_proxy.key")
 
-	p.initFilters()
-
 	err := p.create()
 	if err != nil {
 		log.Error("MITM: %s", err)
@@ -77,6 +73,8 @@ func New(conf Config) *MITMProxy {
 	if p.conf.HTTPRegister != nil {
 		p.initWeb()
 	}
+
+	p.conf.Filter.AddUser(p.onFiltersChanged)
 
 	return &p
 }
@@ -90,18 +88,10 @@ func (p *MITMProxy) Close() {
 	}
 }
 
-// Duplicate filter array
-func arrayFilterDup(f []filter) []filter {
-	nf := make([]filter, len(f))
-	copy(nf, f)
-	return nf
-}
-
 // WriteDiskConfig - write configuration on disk
 func (p *MITMProxy) WriteDiskConfig(c *Config) {
 	p.confLock.Lock()
 	*c = p.conf
-	c.Filters = arrayFilterDup(p.conf.Filters)
 	p.confLock.Unlock()
 }
 
@@ -109,11 +99,6 @@ func (p *MITMProxy) WriteDiskConfig(c *Config) {
 func (p *MITMProxy) Start() error {
 	if !p.conf.Enabled {
 		return nil
-	}
-
-	if !p.updateTaskRunning {
-		p.updateTaskRunning = true
-		go p.updateFilters()
 	}
 
 	err := p.proxy.Start()
@@ -193,13 +178,16 @@ func (p *MITMProxy) create() error {
 	}
 
 	c.FiltersPaths = make(map[int]string)
-	for i, f := range p.conf.Filters {
+	filtrs := p.conf.Filter.List(0)
+	i := 0
+	for _, f := range filtrs {
 		if !f.Enabled ||
-			f.ruleCount == 0 { // not loaded
+			f.RuleCount == 0 { // not loaded
 			continue
 		}
 
-		c.FiltersPaths[i] = p.filterPath(f)
+		c.FiltersPaths[i] = f.Path
+		i++
 	}
 
 	p.proxy, err = proxy.NewServer(c)
@@ -278,4 +266,17 @@ func (p *MITMProxy) prepareMITMConfig() (*mitm.Config, error) {
 	mitmConfig.SetValidity(time.Hour * 24 * 7) // generate certs valid for 7 days
 	mitmConfig.SetOrganization("AdGuard")      // cert organization
 	return mitmConfig, nil
+}
+
+func (p *MITMProxy) onFiltersChanged(flags uint) {
+	switch flags {
+	case filters.EventBeforeUpdate:
+		p.Close()
+
+	case filters.EventAfterUpdate:
+		err := p.Restart()
+		if err != nil {
+			log.Error("MITM: %s", err)
+		}
+	}
 }

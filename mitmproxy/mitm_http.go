@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/AdguardTeam/golibs/jsonutil"
 	"github.com/AdguardTeam/golibs/log"
 )
@@ -107,18 +108,17 @@ func (p *MITMProxy) handleFilterStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := Resp{}
 
-	p.confLock.Lock()
-	for _, f := range p.conf.Filters {
+	filtrs := p.conf.Filter.List(0)
+	for _, f := range filtrs {
 		fj := filterJSON{
 			Enabled:     f.Enabled,
 			Name:        f.Name,
 			URL:         f.URL,
-			RuleCount:   f.ruleCount,
-			LastUpdated: f.lastUpdated,
+			RuleCount:   f.RuleCount,
+			LastUpdated: f.LastUpdated,
 		}
 		resp.Filters = append(resp.Filters, fj)
 	}
-	p.confLock.Unlock()
 
 	js, err := json.Marshal(resp)
 	if err != nil {
@@ -141,13 +141,11 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f := filter{
+	f := filters.Filter{
 		Name: req.Name,
 		URL:  req.URL,
 	}
-	p.confLock.Lock()
-	err = p.addFilter(f)
-	p.confLock.Unlock()
+	err = p.conf.Filter.AddFilter(f)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "addFilter: %s", err)
 		return
@@ -174,9 +172,7 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p.confLock.Lock()
-	removed := p.deleteFilter(req.URL)
-	p.confLock.Unlock()
+	removed := p.conf.Filter.DeleteFilter(req.URL)
 	if removed == nil {
 		httpError(r, w, http.StatusInternalServerError, "No filter with such URL")
 		return
@@ -186,7 +182,7 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 
 	p.Close()
 
-	err = os.Remove(p.filterPath(*removed))
+	err = os.Remove(removed.Path)
 	if err != nil {
 		log.Error("os.Remove: %s", err)
 	}

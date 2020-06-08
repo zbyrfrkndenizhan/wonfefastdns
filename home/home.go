@@ -274,6 +274,7 @@ func run(args options) {
 	fconf := filters.Conf{}
 	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters")
 	fconf.Proxylist = config.ProxyFilters
+	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.HTTPClient = Context.client
 	Context.filters2.Init(fconf)
 

@@ -103,10 +103,10 @@ func (p *MITMProxy) handleFilterStatus(w http.ResponseWriter, r *http.Request) {
 		RuleCount   uint64    `json:"rules_count"`
 		LastUpdated time.Time `json:"last_updated"`
 	}
-	type Resp struct {
+	type respJSON struct {
 		Filters []filterJSON `json:"filters"`
 	}
-	resp := Resp{}
+	resp := respJSON{}
 
 	filtrs := p.conf.Filter.List(0)
 	for _, f := range filtrs {
@@ -130,11 +130,11 @@ func (p *MITMProxy) handleFilterStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
-	type Req struct {
+	type reqJSON struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	}
-	req := Req{}
+	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
@@ -142,10 +142,11 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := filters.Filter{
-		Name: req.Name,
-		URL:  req.URL,
+		Enabled: true,
+		Name:    req.Name,
+		URL:     req.URL,
 	}
-	err = p.conf.Filter.AddFilter(f)
+	err = p.conf.Filter.Add(f)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "addFilter: %s", err)
 		return
@@ -162,17 +163,17 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
-	type Req struct {
+	type reqJSON struct {
 		URL string `json:"url"`
 	}
-	req := Req{}
+	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
 
-	removed := p.conf.Filter.DeleteFilter(req.URL)
+	removed := p.conf.Filter.Delete(req.URL)
 	if removed == nil {
 		httpError(r, w, http.StatusInternalServerError, "No filter with such URL")
 		return
@@ -180,18 +181,76 @@ func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 
 	p.conf.ConfigModified()
 
-	p.Close()
+	if removed.Enabled {
+		p.Close()
+	}
 
 	err = os.Remove(removed.Path)
 	if err != nil {
 		log.Error("os.Remove: %s", err)
 	}
 
-	err = p.Restart()
+	if removed.Enabled {
+		err = p.Restart()
+		if err != nil {
+			httpError(r, w, http.StatusInternalServerError, "start: %s", err)
+			return
+		}
+	}
+}
+
+func (p *MITMProxy) handleFilterModify(w http.ResponseWriter, r *http.Request) {
+	type propsJSON struct {
+		Name    string `json:"name"`
+		URL     string `json:"url"`
+		Enabled bool   `json:"enabled"`
+	}
+	type reqJSON struct {
+		URL  string    `json:"url"`
+		Data propsJSON `json:"data"`
+	}
+	req := reqJSON{}
+	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
-		httpError(r, w, http.StatusInternalServerError, "start: %s", err)
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
+
+	st := p.conf.Filter.Modify(req.URL, req.Data.Enabled, req.Data.Name, req.Data.URL)
+	if st == filters.StatusNotFound {
+		httpError(r, w, http.StatusBadRequest, "filter not found: %s", req.URL)
+		return
+	}
+
+	p.conf.ConfigModified()
+
+	//TODO st == filters.StatusChangedEnabled
+	// st == filters.StatusChangedURL
+
+}
+
+func (p *MITMProxy) handleFilterRefresh(w http.ResponseWriter, r *http.Request) {
+	type reqJSON struct {
+		Type string `json:"type"`
+	}
+	req := reqJSON{}
+	_, err := jsonutil.DecodeObject(&req, r.Body)
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	switch req.Type {
+	case "proxylist":
+
+	// case "blocklist":
+	// case "whitelist":
+	default:
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
+		return
+	}
+
+	p.conf.Filter.Refresh(0)
 }
 
 // Initialize web handlers
@@ -202,4 +261,6 @@ func (p *MITMProxy) initWeb() {
 	p.conf.HTTPRegister("GET", "/control/proxy_filter/status", p.handleFilterStatus)
 	p.conf.HTTPRegister("POST", "/control/proxy_filter/add", p.handleFilterAdd)
 	p.conf.HTTPRegister("POST", "/control/proxy_filter/remove", p.handleFilterRemove)
+	p.conf.HTTPRegister("POST", "/control/proxy_filter/set", p.handleFilterModify)
+	p.conf.HTTPRegister("POST", "/control/proxy_filter/refresh", p.handleFilterRefresh)
 }

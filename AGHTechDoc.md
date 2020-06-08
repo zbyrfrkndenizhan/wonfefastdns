@@ -1408,7 +1408,19 @@ Response:
 			}
 			...
 		],
-		"user_rules":["...", ...]
+		"user_rules":["...", ...],
+
+		"proxy_filtering_enabled": true | false
+		"proxy_filters":[
+			{
+			"enabled":true,
+			"url":"https://...",
+			"name":"...",
+			"rules_count":1234,
+			"last_updated":"2019-09-04T18:29:30+00:00",
+			}
+			...
+		],
 	}
 
 For both arrays `filters` and `whitelist_filters` there are unique values: id, url.
@@ -1423,6 +1435,7 @@ Request:
 
 	{
 		"enabled": true | false
+		"proxy_filtering_enabled": true | false
 		"interval": 0 | 1 | 12 | 1*24 || 3*24 || 7*24
 	}
 
@@ -1438,7 +1451,7 @@ Request:
 	POST /control/filtering/refresh
 
 	{
-		"whitelist": true
+		"type": blocklist | whitelist | proxylist
 	}
 
 Response:
@@ -1459,7 +1472,7 @@ Request:
 	{
 		"name": "..."
 		"url": "..." // URL or an absolute file path
-		"whitelist": true
+		"type": blocklist | whitelist | proxylist
 	}
 
 Response:
@@ -1475,11 +1488,10 @@ Request:
 
 	{
 	"url": "..."
-	"whitelist": true
+	"type": blocklist | whitelist | proxylist
 	"data": {
 		"name": "..."
 		"url": "..."
-		"enabled": true | false
 	}
 	}
 
@@ -1496,7 +1508,7 @@ Request:
 
 	{
 	"url": "..."
-	"whitelist": true
+	"type": blocklist | whitelist | proxylist
 	}
 
 Response:
@@ -1575,61 +1587,6 @@ Request:
 
 		"cert_data":"...", // user-specified certificate.  "": generate new
 		"pkey_data":"...",
-	}
-
-Response:
-
-	200 OK
-
-
-### API: Get Proxy filtering parameters
-
-Request:
-
-	GET /control/proxy_filter/status
-
-Response:
-
-	200 OK
-
-	{
-	"filters":[
-		{
-		"enabled":true,
-		"url":"https://...",
-		"name":"...",
-		"rules_count":1234,
-		"last_updated":"2019-09-04T18:29:30+00:00",
-		}
-		...
-	],
-	}
-
-
-### API: Add Proxy Filter
-
-Request:
-
-	POST /control/proxy_filter/add
-
-	{
-		"name": "...",
-		"url": "..."
-	}
-
-Response:
-
-	200 OK
-
-
-### API: Delete Proxy Filter
-
-Request:
-
-	POST /control/proxy_filter/remove
-
-	{
-	"url": "..."
 	}
 
 Response:

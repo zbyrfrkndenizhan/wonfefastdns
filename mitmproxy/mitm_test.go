@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,12 +21,17 @@ func TestMITM(t *testing.T) {
 	dir := prepareTestDir()
 	defer func() { _ = os.RemoveAll(dir) }()
 
+	fconf := filters.Conf{}
+	fconf.FilterDir = dir
+	fconf.HTTPClient = http.DefaultClient
+	filters := filters.New(fconf)
+
 	conf := Config{}
 	conf.Enabled = true
 	conf.CertDir = dir
-	conf.FilterDir = dir
 	conf.RegenCert = true
 	conf.ListenAddr = "127.0.0.1:8081"
+	conf.Filter = filters
 	s := New(conf)
 	assert.NotNil(t, s)
 

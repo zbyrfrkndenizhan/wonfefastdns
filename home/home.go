@@ -278,7 +278,6 @@ func run(args options) {
 	fconf.HTTPClient = Context.client
 	Context.filters2 = filters.New(fconf)
 
-	config.MITM.HTTPClient = Context.client
 	config.MITM.CertDir = Context.getDataDir()
 	config.MITM.ConfigModified = onConfigModified
 	config.MITM.HTTPRegister = httpRegister

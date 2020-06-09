@@ -72,7 +72,7 @@ const (
 // Conf - configuration
 type Conf struct {
 	FilterDir           string
-	UpdateIntervalHours uint32
+	UpdateIntervalHours uint32 // 0: disabled
 	HTTPClient          *http.Client
 	Proxylist           []Filter
 }

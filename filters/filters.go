@@ -281,6 +281,12 @@ func (fs *filterStg) updateFilters() {
 		// if !dns.isRunning()
 		//  sleep
 
+		if fs.conf.UpdateIntervalHours == 0 {
+			// update is disabled
+			time.Sleep(period)
+			continue
+		}
+
 		var uf Filter
 		fs.confLock.Lock()
 		f := fs.getNextToUpdate()

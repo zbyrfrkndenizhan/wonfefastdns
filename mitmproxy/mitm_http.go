@@ -129,6 +129,19 @@ func (p *MITMProxy) handleFilterStatus(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(js)
 }
 
+func (p *MITMProxy) handleFilterConfig(w http.ResponseWriter, r *http.Request) {
+	type reqJSON struct {
+		Enabled  bool   `json:"enabled"`
+		Interval uint32 `json:"interval"`
+	}
+	req := reqJSON{}
+	_, err := jsonutil.DecodeObject(&req, r.Body)
+	if err != nil {
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+}
+
 func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	type reqJSON struct {
 		Name string `json:"name"`
@@ -303,6 +316,7 @@ func (p *MITMProxy) initWeb() {
 	p.conf.HTTPRegister("POST", "/control/proxy_config", p.handleSetConfig)
 
 	p.conf.HTTPRegister("GET", "/control/proxy_filter/status", p.handleFilterStatus)
+	p.conf.HTTPRegister("POST", "/control/proxy_filter/config", p.handleFilterConfig)
 	p.conf.HTTPRegister("POST", "/control/proxy_filter/add", p.handleFilterAdd)
 	p.conf.HTTPRegister("POST", "/control/proxy_filter/remove", p.handleFilterRemove)
 	p.conf.HTTPRegister("POST", "/control/proxy_filter/set", p.handleFilterModify)

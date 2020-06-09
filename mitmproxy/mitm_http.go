@@ -140,6 +140,11 @@ func (p *MITMProxy) handleFilterConfig(w http.ResponseWriter, r *http.Request) {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
+
+	// Enabled
+	// Interval
+
+	p.conf.ConfigModified()
 }
 
 func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {

@@ -317,8 +317,6 @@ func run(args options) {
 		Context.tls.Start()
 		Context.autoHosts.Start()
 
-		Context.filters2.Start()
-
 		go func() {
 			err := startDNSServer()
 			if err != nil {

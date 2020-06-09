@@ -276,13 +276,13 @@ func run(args options) {
 	fconf.Proxylist = config.ProxyFilters
 	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.HTTPClient = Context.client
-	Context.filters2.Init(fconf)
+	Context.filters2 = filters.New(fconf)
 
 	config.MITM.HTTPClient = Context.client
 	config.MITM.CertDir = Context.getDataDir()
 	config.MITM.ConfigModified = onConfigModified
 	config.MITM.HTTPRegister = httpRegister
-	config.MITM.Filter = &Context.filters2
+	config.MITM.Filter = Context.filters2
 	Context.mitmProxy = mitmproxy.New(config.MITM)
 	if Context.mitmProxy == nil {
 		os.Exit(1)

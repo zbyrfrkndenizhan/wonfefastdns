@@ -133,11 +133,23 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	type reqJSON struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
+		Type string `json:"type"`
 	}
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	switch req.Type {
+	case "proxylist":
+		//
+
+	// case "blocklist":
+	// case "whitelist":
+	default:
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
@@ -164,12 +176,24 @@ func (p *MITMProxy) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 
 func (p *MITMProxy) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 	type reqJSON struct {
-		URL string `json:"url"`
+		URL  string `json:"url"`
+		Type string `json:"type"`
 	}
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	switch req.Type {
+	case "proxylist":
+		//
+
+	// case "blocklist":
+	// case "whitelist":
+	default:
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
@@ -207,12 +231,24 @@ func (p *MITMProxy) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 	}
 	type reqJSON struct {
 		URL  string    `json:"url"`
+		Type string    `json:"type"`
 		Data propsJSON `json:"data"`
 	}
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
 		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		return
+	}
+
+	switch req.Type {
+	case "proxylist":
+		//
+
+	// case "blocklist":
+	// case "whitelist":
+	default:
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
@@ -224,9 +260,16 @@ func (p *MITMProxy) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 
 	p.conf.ConfigModified()
 
-	//TODO st == filters.StatusChangedEnabled
-	// st == filters.StatusChangedURL
+	if st == filters.StatusChangedEnabled ||
+		st == filters.StatusChangedURL {
 
+		p.Close()
+		err = p.Restart()
+		if err != nil {
+			httpError(r, w, http.StatusInternalServerError, "%s", err)
+			return
+		}
+	}
 }
 
 func (p *MITMProxy) handleFilterRefresh(w http.ResponseWriter, r *http.Request) {
@@ -242,6 +285,7 @@ func (p *MITMProxy) handleFilterRefresh(w http.ResponseWriter, r *http.Request) 
 
 	switch req.Type {
 	case "proxylist":
+		//
 
 	// case "blocklist":
 	// case "whitelist":

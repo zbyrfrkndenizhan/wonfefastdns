@@ -14,62 +14,31 @@ import (
 	"github.com/AdguardTeam/golibs/log"
 )
 
-const (
-	// EventBeforeUpdate - this event is signalled before the update procedure renames/removes old filter files
-	EventBeforeUpdate = iota
-	// EventAfterUpdate - this event is signalled after the update procedure is finished
-	EventAfterUpdate
-)
-
-// EventHandler - event handler function
-type EventHandler func(flags uint)
-
-// Filter - filter object
-type Filter struct {
-	ID      uint64 `yaml:"id"`
-	Enabled bool   `yaml:"enabled"`
-	Name    string `yaml:"name"`
-	URL     string `yaml:"url"`
-
-	Path string `yaml:"-"`
-
-	RuleCount   uint64    `yaml:"-"`
-	LastUpdated time.Time `yaml:"-"`
-	newID       uint64
-	nextUpdate  time.Time
-}
-
-// Conf - configuration
-type Conf struct {
-	FilterDir           string
-	UpdateIntervalHours uint32
-	HTTPClient          *http.Client
-	Proxylist           []Filter
-}
-
-// Filters - module object
-type Filters struct {
-	filtersUpdated    bool
+// filter storage object
+type filterStg struct {
 	updateTaskRunning bool
+	updated           []Filter
 	conf              Conf
 	confLock          sync.Mutex
 
 	Users []EventHandler
 }
 
-// Init - initialize the module
-func (fs *Filters) Init(conf Conf) {
+// initialize the module
+func newFiltersObj(conf Conf) Filters {
+	fs := filterStg{}
 	fs.conf = conf
+	return &fs
 }
 
 // Start - start module
-func (fs *Filters) Start() {
+func (fs *filterStg) Start() {
 	for i := range fs.conf.Proxylist {
 		f := &fs.conf.Proxylist[i]
-		fname := fs.filterPath(*f)
+		fname := fs.filePath(*f)
 		st, err := os.Stat(fname)
 		if err != nil {
-			log.Error("Filters: os.Stat: %s %s", fname, err)
+			log.Error("filterStg: os.Stat: %s %s", fname, err)
 			continue
 		}
 		f.LastUpdated = st.ModTime()
@@ -77,7 +46,7 @@ func (fs *Filters) Start() {
 
 		body, err := ioutil.ReadFile(fname)
 		if err != nil {
-			log.Error("Filters: ioutil.ReadFile: %s %s", fname, err)
+			log.Error("filterStg: ioutil.ReadFile: %s %s", fname, err)
 			continue
 		}
 		_ = parseFilter(f, body)
@@ -90,7 +59,7 @@ func (fs *Filters) Start() {
 }
 
 // Close - close the module
-func (fs *Filters) Close() {
+func (fs *filterStg) Close() {
 }
 
 // Duplicate filter array
@@ -101,7 +70,7 @@ func arrayFilterDup(f []Filter) []Filter {
 }
 
 // WriteDiskConfig - write configuration on disk
-func (fs *Filters) WriteDiskConfig(c *Conf) {
+func (fs *filterStg) WriteDiskConfig(c *Conf) {
 	fs.confLock.Lock()
 	*c = fs.conf
 	c.Proxylist = arrayFilterDup(fs.conf.Proxylist)
@@ -109,24 +78,24 @@ func (fs *Filters) WriteDiskConfig(c *Conf) {
 }
 
 // AddUser - add user handler for notifications
-func (fs *Filters) AddUser(handler EventHandler) {
+func (fs *filterStg) AddUser(handler EventHandler) {
 	fs.Users = append(fs.Users, handler)
 }
 
-// NotifyUsers - notify all users about the event
-func (fs *Filters) NotifyUsers(flags uint) {
+// notify all users about the event
+func (fs *filterStg) notifyUsers(flags uint) {
 	for _, u := range fs.Users {
 		u(flags)
 	}
 }
 
 // List (thread safe)
-func (fs *Filters) List(flags uint) []Filter {
+func (fs *filterStg) List(flags uint) []Filter {
 	fs.confLock.Lock()
 	ff := make([]Filter, len(fs.conf.Proxylist))
 	for _, f := range fs.conf.Proxylist {
 		nf := f
-		nf.Path = fs.filterPath(f)
+		nf.Path = fs.filePath(f)
 		ff = append(ff, nf)
 	}
 	fs.confLock.Unlock()
@@ -134,12 +103,12 @@ func (fs *Filters) List(flags uint) []Filter {
 }
 
 // Get filter file name
-func (fs *Filters) filterPath(f Filter) string {
+func (fs *filterStg) filePath(f Filter) string {
 	return filepath.Join(fs.conf.FilterDir, fmt.Sprintf("%d.txt", f.ID))
 }
 
 // Get next filter ID
-func (fs *Filters) nextFilterID() uint64 {
+func (fs *filterStg) nextFilterID() uint64 {
 	return uint64(time.Now().Unix())
 }
 
@@ -183,12 +152,12 @@ func parseFilter(f *Filter, body []byte) error {
 }
 
 // Download filter data
-func (fs *Filters) downloadFilter(f *Filter) error {
-	log.Debug("Filters: Downloading filter from %s", f.URL)
+func (fs *filterStg) downloadFilter(f *Filter) error {
+	log.Debug("filterStg: Downloading filter from %s", f.URL)
 
 	body, err := download(fs.conf.HTTPClient, f.URL)
 	if err != nil {
-		err := fmt.Errorf("Filters: Couldn't download filter from %s: %s", f.URL, err)
+		err := fmt.Errorf("filterStg: Couldn't download filter from %s: %s", f.URL, err)
 		return err
 	}
 
@@ -197,19 +166,19 @@ func (fs *Filters) downloadFilter(f *Filter) error {
 		return err
 	}
 
-	fname := fs.filterPath(*f)
+	fname := fs.filePath(*f)
 	err = file.SafeWrite(fname, body)
 	if err != nil {
 		return err
 	}
 
-	log.Debug("Filters: saved filter %s at %s", f.URL, fname)
+	log.Debug("filterStg: saved filter %s at %s", f.URL, fname)
 	f.LastUpdated = time.Now()
 	return nil
 }
 
 // Add - add filter (thread safe)
-func (fs *Filters) Add(nf Filter) error {
+func (fs *filterStg) Add(nf Filter) error {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
@@ -227,12 +196,12 @@ func (fs *Filters) Add(nf Filter) error {
 		return err
 	}
 	fs.conf.Proxylist = append(fs.conf.Proxylist, nf)
-	log.Debug("Filters: added filter %s", nf.URL)
+	log.Debug("filterStg: added filter %s", nf.URL)
 	return nil
 }
 
 // Delete - remove filter (thread safe)
-func (fs *Filters) Delete(url string) *Filter {
+func (fs *filterStg) Delete(url string) *Filter {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
@@ -249,23 +218,14 @@ func (fs *Filters) Delete(url string) *Filter {
 		return nil
 	}
 	fs.conf.Proxylist = nf
-	log.Debug("Filters: removed filter %s", url)
-	found.Path = fs.filterPath(*found) // the caller will delete the file
+	log.Debug("filterStg: removed filter %s", url)
+	found.Path = fs.filePath(*found) // the caller will delete the file
 	return found
 }
 
-const (
-	// StatusNotFound - NotFound
-	StatusNotFound = 1
-	// StatusChangedEnabled - ChangedEnabled
-	StatusChangedEnabled = 2
-	// StatusChangedURL - ChangedURL
-	StatusChangedURL = 4
-)
-
 // Modify - set filter properties (thread safe)
 // Return Status* bitarray
-func (fs *Filters) Modify(url string, enabled bool, name string, newURL string) int {
+func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string) int {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
@@ -297,8 +257,12 @@ func (fs *Filters) Modify(url string, enabled bool, name string, newURL string) 
 	return st
 }
 
-func (fs *Filters) Refresh(flags uint) {
-	// TODO
+// Refresh - begin filters update procedure
+func (fs *filterStg) Refresh(flags uint) {
+	for i := range fs.conf.Proxylist {
+		f := &fs.conf.Proxylist[i]
+		f.nextUpdate = time.Time{}
+	}
 }
 
 // Periodically update filters
@@ -311,15 +275,18 @@ func (fs *Filters) Refresh(flags uint) {
 // . Stop modules that use filters
 // . Rename "new file name" -> "old file name"
 // . Restart modules that use filters
-func (fs *Filters) updateFilters() {
+func (fs *filterStg) updateFilters() {
 	period := time.Hour
 	for {
 		// if !dns.isRunning()
 		//  sleep
 
+		var uf Filter
 		fs.confLock.Lock()
 		f := fs.getNextToUpdate()
-		uf := *f
+		if f != nil {
+			uf = *f
+		}
 		fs.confLock.Unlock()
 
 		if f == nil {
@@ -335,14 +302,13 @@ func (fs *Filters) updateFilters() {
 			continue
 		}
 
-		fs.confLock.Lock()
-		fs.modifyUpdated(uf)
-		fs.confLock.Unlock()
+		// add new filter to the list
+		fs.updated = append(fs.updated, uf)
 	}
 }
 
 // Get next filter to update
-func (fs *Filters) getNextToUpdate() *Filter {
+func (fs *filterStg) getNextToUpdate() *Filter {
 	now := time.Now()
 
 	for i := range fs.conf.Proxylist {
@@ -359,52 +325,47 @@ func (fs *Filters) getNextToUpdate() *Filter {
 	return nil
 }
 
-// Set new filter properties after update
-func (fs *Filters) modifyUpdated(uf Filter) {
-	for i := range fs.conf.Proxylist {
-		f := &fs.conf.Proxylist[i]
-
-		if f.URL == uf.URL {
-			f.newID = uf.ID
-			f.RuleCount = uf.RuleCount
-			f.LastUpdated = uf.LastUpdated
-
-			fs.filtersUpdated = true
-			break
-		}
-	}
-}
-
 // Replace filter files
-func (fs *Filters) applyUpdate() {
-	if !fs.filtersUpdated {
-		log.Debug("Filters: no filters were updated")
+func (fs *filterStg) applyUpdate() {
+	if len(fs.updated) == 0 {
+		log.Debug("filterStg: no filters were updated")
 		return
 	}
-	fs.filtersUpdated = false
 
-	fs.NotifyUsers(EventBeforeUpdate)
+	fs.notifyUsers(EventBeforeUpdate)
 
 	nUpdated := 0
 
 	fs.confLock.Lock()
-	for i := range fs.conf.Proxylist {
-		f := &fs.conf.Proxylist[i]
+	for _, uf := range fs.updated {
+		found := false
 
-		if f.newID != 0 && f.newID != f.ID {
-			name := fs.filterPath(*f)
-			newName := fs.filterPath(Filter{ID: f.newID})
-			err := os.Rename(newName, name)
-			if err != nil {
-				log.Error("Filters: os.Rename:%s", err)
+		for i := range fs.conf.Proxylist {
+			f := &fs.conf.Proxylist[i]
+
+			if uf.URL == f.URL {
+				name := fs.filePath(*f)
+				updatedName := fs.filePath(uf)
+				err := os.Rename(updatedName, name)
+				if err != nil {
+					log.Error("filterStg: os.Rename:%s", err)
+				}
+				f.RuleCount = uf.RuleCount
+				f.LastUpdated = uf.LastUpdated
+				nUpdated++
+				found = true
+				break
 			}
-			f.newID = 0
-			nUpdated++
+		}
+
+		if !found {
+			_ = os.Remove(fs.filePath(uf))
 		}
 	}
 	fs.confLock.Unlock()
 
-	log.Debug("Filters: %d filters were updated", nUpdated)
+	log.Debug("filterStg: %d filters were updated", nUpdated)
 
-	fs.NotifyUsers(EventAfterUpdate)
+	fs.updated = nil
+	fs.notifyUsers(EventAfterUpdate)
 }

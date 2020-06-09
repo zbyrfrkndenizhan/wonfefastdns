@@ -46,8 +46,8 @@ type Config struct {
 	certData     []byte
 	pkeyData     []byte
 
-	Filter     *filters.Filters `yaml:"-"`
-	HTTPClient *http.Client     `yaml:"-"`
+	Filter     filters.Filters `yaml:"-"`
+	HTTPClient *http.Client    `yaml:"-"`
 
 	// Called when the configuration is changed by HTTP request
 	ConfigModified func() `yaml:"-"`

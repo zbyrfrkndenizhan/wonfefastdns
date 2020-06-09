@@ -374,22 +374,12 @@ func writeFile(f *Filter, reader io.Reader, outFile *os.File) error {
 		chunk = append(chunk, buf[:n]...)
 		s := string(chunk)
 		for len(s) != 0 {
-			line := ""
-			i := strings.IndexByte(s, '\n')
-			if i == -1 {
-				if err != io.EOF {
-					chunk = []byte(s)
-					break
-				}
-				line = s
-				s = ""
-
-			} else {
-				line = s[:i]
-				s = s[i+1:]
+			chunk = []byte(s)
+			i, line := splitNext(&s, '\n')
+			if i < 0 && err != io.EOF {
+				// no more lines in the current chunk
+				break
 			}
-
-			line = strings.TrimSpace(line)
 
 			if len(line) == 0 ||
 				line[0] == '#' ||
@@ -410,6 +400,27 @@ func writeFile(f *Filter, reader io.Reader, outFile *os.File) error {
 
 	f.RuleCount = uint64(ruleCount)
 	return nil
+}
+
+// SplitNext - split string by a byte
+// Whitespace is trimmed
+// Return byte position and the first chunk
+func splitNext(data *string, by byte) (int, string) {
+	s := *data
+	i := strings.IndexByte(s, by)
+	var chunk string
+	if i < 0 {
+		chunk = s
+		s = ""
+
+	} else {
+		chunk = s[:i]
+		s = s[i+1:]
+	}
+
+	*data = s
+	chunk = strings.TrimSpace(chunk)
+	return i, chunk
 }
 
 // Refresh - begin filters update procedure
@@ -512,7 +523,7 @@ func (fs *filterStg) applyUpdate() {
 					// the data hasn't changed - just update file mod time
 					err := os.Chtimes(fpath, f.LastUpdated, f.LastUpdated)
 					if err != nil {
-						log.Debug("os.Chtimes: %s", err)
+						log.Error("Filters: os.Chtimes: %s", err)
 					}
 					continue
 				}

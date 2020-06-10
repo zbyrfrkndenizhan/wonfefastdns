@@ -38,11 +38,11 @@ type Filters interface {
 
 // Filter - filter object
 type Filter struct {
-	ID      uint64 `yaml:"id"`
-	Enabled bool   `yaml:"enabled"`
-	Name    string `yaml:"name"`
-	URL     string `yaml:"url"`
-	LastModified     string `yaml:"last_modified"`
+	ID           uint64 `yaml:"id"`
+	Enabled      bool   `yaml:"enabled"`
+	Name         string `yaml:"name"`
+	URL          string `yaml:"url"`
+	LastModified string `yaml:"last_modified"`
 
 	Path string `yaml:"-"`
 
@@ -75,7 +75,7 @@ type Conf struct {
 	FilterDir           string
 	UpdateIntervalHours uint32 // 0: disabled
 	HTTPClient          *http.Client
-	Proxylist           []Filter
+	List                []Filter
 }
 
 // New - create object

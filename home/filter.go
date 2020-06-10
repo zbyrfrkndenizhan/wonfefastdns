@@ -26,7 +26,6 @@ var (
 
 // Filtering - module object
 type Filtering struct {
-	// conf FilteringConf
 	refreshStatus     uint32 // 0:none; 1:in progress
 	refreshLock       sync.Mutex
 	filterTitleRegexp *regexp.Regexp

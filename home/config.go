@@ -274,10 +274,15 @@ func (c *configuration) write() error {
 		config.DNS.DnsfilterConf = c
 	}
 
+	if Context.filters0 != nil {
+		c := filters.Conf{}
+		Context.filters0.WriteDiskConfig(&c)
+		// config.Filters = c.List
+	}
 	if Context.filters2 != nil {
 		c := filters.Conf{}
 		Context.filters2.WriteDiskConfig(&c)
-		config.ProxyFilters = c.Proxylist
+		config.ProxyFilters = c.List
 	}
 
 	if Context.dnsServer != nil {

@@ -35,8 +35,8 @@ func newFiltersObj(conf Conf) Filters {
 
 // Start - start module
 func (fs *filterStg) Start() {
-	for i := range fs.conf.Proxylist {
-		f := &fs.conf.Proxylist[i]
+	for i := range fs.conf.List {
+		f := &fs.conf.List[i]
 		fname := fs.filePath(*f)
 		st, err := os.Stat(fname)
 		if err != nil {
@@ -76,7 +76,7 @@ func arrayFilterDup(f []Filter) []Filter {
 func (fs *filterStg) WriteDiskConfig(c *Conf) {
 	fs.confLock.Lock()
 	*c = fs.conf
-	c.Proxylist = arrayFilterDup(fs.conf.Proxylist)
+	c.List = arrayFilterDup(fs.conf.List)
 	fs.confLock.Unlock()
 }
 
@@ -95,8 +95,8 @@ func (fs *filterStg) notifyUsers(flags uint) {
 // List (thread safe)
 func (fs *filterStg) List(flags uint) []Filter {
 	fs.confLock.Lock()
-	ff := make([]Filter, len(fs.conf.Proxylist))
-	for _, f := range fs.conf.Proxylist {
+	ff := make([]Filter, len(fs.conf.List))
+	for _, f := range fs.conf.List {
 		nf := f
 		nf.Path = fs.filePath(f)
 		ff = append(ff, nf)
@@ -110,7 +110,7 @@ func (fs *filterStg) Add(nf Filter) error {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
-	for _, f := range fs.conf.Proxylist {
+	for _, f := range fs.conf.List {
 		if f.Name == nf.Name || f.URL == nf.URL {
 			return fmt.Errorf("filter with this Name or URL already exists")
 		}
@@ -123,7 +123,7 @@ func (fs *filterStg) Add(nf Filter) error {
 		log.Debug("%s", err)
 		return err
 	}
-	fs.conf.Proxylist = append(fs.conf.Proxylist, nf)
+	fs.conf.List = append(fs.conf.List, nf)
 	log.Debug("Filters: added filter %s", nf.URL)
 	return nil
 }
@@ -135,7 +135,7 @@ func (fs *filterStg) Delete(url string) *Filter {
 
 	nf := []Filter{}
 	var found *Filter
-	for _, f := range fs.conf.Proxylist {
+	for _, f := range fs.conf.List {
 		if f.URL == url {
 			found = &f
 			continue
@@ -145,7 +145,7 @@ func (fs *filterStg) Delete(url string) *Filter {
 	if found == nil {
 		return nil
 	}
-	fs.conf.Proxylist = nf
+	fs.conf.List = nf
 	log.Debug("Filters: removed filter %s", url)
 	found.Path = fs.filePath(*found) // the caller will delete the file
 	return found
@@ -159,7 +159,7 @@ func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string
 
 	st := 0
 
-	for _, f := range fs.conf.Proxylist {
+	for _, f := range fs.conf.List {
 		if f.URL == url {
 
 			f.Name = name
@@ -424,8 +424,8 @@ func (fs *filterStg) Refresh(flags uint) {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
-	for i := range fs.conf.Proxylist {
-		f := &fs.conf.Proxylist[i]
+	for i := range fs.conf.List {
+		f := &fs.conf.List[i]
 		f.nextUpdate = time.Time{}
 	}
 }
@@ -481,8 +481,8 @@ func (fs *filterStg) updateFilters() {
 func (fs *filterStg) getNextToUpdate() *Filter {
 	now := time.Now()
 
-	for i := range fs.conf.Proxylist {
-		f := &fs.conf.Proxylist[i]
+	for i := range fs.conf.List {
+		f := &fs.conf.List[i]
 
 		if f.Enabled &&
 			f.nextUpdate.Unix() <= now.Unix() {
@@ -510,8 +510,8 @@ func (fs *filterStg) applyUpdate() {
 	for _, uf := range fs.updated {
 		found := false
 
-		for i := range fs.conf.Proxylist {
-			f := &fs.conf.Proxylist[i]
+		for i := range fs.conf.List {
+			f := &fs.conf.List[i]
 
 			if uf.URL == f.URL {
 				found = true

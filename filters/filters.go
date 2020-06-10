@@ -29,8 +29,8 @@ type Filters interface {
 	Delete(url string) *Filter
 
 	// Modify - set filter properties (thread safe)
-	// Return Status* bitarray
-	Modify(url string, enabled bool, name string, newURL string) int
+	// Return Status* bitarray and error
+	Modify(url string, enabled bool, name string, newURL string) (int, error)
 
 	// Refresh - begin filters update procedure
 	Refresh(flags uint)
@@ -62,8 +62,6 @@ const (
 type EventHandler func(flags uint)
 
 const (
-	// StatusNotFound - not found
-	StatusNotFound = 1
 	// StatusChangedEnabled - changed 'Enabled'
 	StatusChangedEnabled = 2
 	// StatusChangedURL - changed 'URL'

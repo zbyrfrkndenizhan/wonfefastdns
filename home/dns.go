@@ -71,8 +71,6 @@ func initDNSServer() error {
 
 	Context.rdns = InitRDNS(Context.dnsServer, &Context.clients)
 	Context.whois = initWhois(&Context.clients)
-
-	Context.filters.Init()
 	return nil
 }
 

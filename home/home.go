@@ -70,7 +70,8 @@ type homeContext struct {
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
 	filters    Filtering            // DNS filtering module
-	filters0   filters.Filters      // DNS filtering module
+	filters0   filters.Filters      // DNS blocklist filters
+	filters1   filters.Filters      // DNS allowlist filters
 	filters2   filters.Filters      // MITM Proxy filtering module
 	web        *Web                 // Web (HTTP, HTTPS) module
 	tls        *TLSMod              // TLS module
@@ -274,10 +275,17 @@ func run(args options) {
 
 	fconf := filters.Conf{}
 	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters")
-	// fconf.List = config.Filters
+	fconf.List = config.Filters
 	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.HTTPClient = Context.client
 	Context.filters0 = filters.New(fconf)
+
+	fconf = filters.Conf{}
+	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters")
+	fconf.List = config.WhitelistFilters
+	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
+	fconf.HTTPClient = Context.client
+	Context.filters1 = filters.New(fconf)
 
 	fconf = filters.Conf{}
 	fconf.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")

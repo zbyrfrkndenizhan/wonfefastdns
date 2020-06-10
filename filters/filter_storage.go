@@ -35,8 +35,11 @@ func newFiltersObj(conf Conf) Filters {
 
 // Start - start module
 func (fs *filterStg) Start() {
+	_ = os.MkdirAll(fs.conf.FilterDir, 0755)
+
 	for i := range fs.conf.List {
 		f := &fs.conf.List[i]
+
 		fname := fs.filePath(*f)
 		st, err := os.Stat(fname)
 		if err != nil {
@@ -46,11 +49,16 @@ func (fs *filterStg) Start() {
 		f.LastUpdated = st.ModTime()
 		f.nextUpdate = f.LastUpdated.Add(time.Duration(fs.conf.UpdateIntervalHours) * time.Hour)
 
-		file, err := os.OpenFile(fname, os.O_RDONLY, 0)
-		if err != nil {
-			log.Error("Filters: ioutil.ReadFile: %s %s", fname, err)
+		if !f.Enabled {
 			continue
 		}
+
+		file, err := os.OpenFile(fname, os.O_RDONLY, 0)
+		if err != nil {
+			log.Error("Filters: os.OpenFile: %s %s", fname, err)
+			continue
+		}
+
 		_ = parseFilter(f, file)
 		file.Close()
 	}
@@ -155,7 +163,7 @@ func (fs *filterStg) Delete(url string) *Filter {
 
 // Modify - set filter properties (thread safe)
 // Return Status* bitarray
-func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string) int {
+func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string) (int, error) {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
@@ -185,16 +193,15 @@ func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string
 				err := fs.downloadFilter(f)
 				if err != nil {
 					*f = backup
-					log.Debug("%s", err)
-					return StatusNotFound
+					return 0, err
 				}
 			}
 
-			return st
+			return st, nil
 		}
 	}
 
-	return StatusNotFound
+	return 0, fmt.Errorf("filter %s not found", url)
 }
 
 // Get filter file name
@@ -459,6 +466,9 @@ func (fs *filterStg) Refresh(flags uint) {
 //  . Update meta data
 // . Restart modules that use filters
 func (fs *filterStg) updateFilters() {
+	// const maxInterval = 1 * 60 * 60
+	// intval := 5 // use a dynamically increasing time interval
+
 	period := time.Hour
 	for {
 		if fs.conf.UpdateIntervalHours == 0 {

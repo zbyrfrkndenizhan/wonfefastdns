@@ -63,9 +63,9 @@ type configuration struct {
 
 	MITM mitmproxy.Config `yaml:"mitmproxy"`
 
-	Filters          []filter `yaml:"filters"`
-	WhitelistFilters []filter `yaml:"whitelist_filters"`
-	UserRules        []string `yaml:"user_rules"`
+	Filters          []filters.Filter `yaml:"filters"`
+	WhitelistFilters []filters.Filter `yaml:"whitelist_filters"`
+	UserRules        []string         `yaml:"user_rules"`
 
 	ProxyFilters []filters.Filter `yaml:"proxy_filters"`
 
@@ -277,7 +277,12 @@ func (c *configuration) write() error {
 	if Context.filters0 != nil {
 		c := filters.Conf{}
 		Context.filters0.WriteDiskConfig(&c)
-		// config.Filters = c.List
+		config.Filters = c.List
+	}
+	if Context.filters1 != nil {
+		c := filters.Conf{}
+		Context.filters1.WriteDiskConfig(&c)
+		config.WhitelistFilters = c.List
 	}
 	if Context.filters2 != nil {
 		c := filters.Conf{}

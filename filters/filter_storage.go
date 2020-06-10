@@ -135,12 +135,14 @@ func (fs *filterStg) Delete(url string) *Filter {
 
 	nf := []Filter{}
 	var found *Filter
-	for _, f := range fs.conf.List {
+	for i := range fs.conf.List {
+		f := &fs.conf.List[i]
+
 		if f.URL == url {
-			found = &f
+			found = f
 			continue
 		}
-		nf = append(nf, f)
+		nf = append(nf, *f)
 	}
 	if found == nil {
 		return nil
@@ -159,9 +161,11 @@ func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string
 
 	st := 0
 
-	for _, f := range fs.conf.List {
+	for i := range fs.conf.List {
+		f := &fs.conf.List[i]
 		if f.URL == url {
 
+			backup := *f
 			f.Name = name
 
 			if f.Enabled != enabled {
@@ -172,6 +176,18 @@ func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string
 			if f.URL != newURL {
 				f.URL = newURL
 				st |= StatusChangedURL
+			}
+
+			if (st & StatusChangedURL) != 0 {
+				f.ID = fs.nextFilterID()
+				f.LastModified = ""
+				f.RuleCount = 0
+				err := fs.downloadFilter(f)
+				if err != nil {
+					*f = backup
+					log.Debug("%s", err)
+					return StatusNotFound
+				}
 			}
 
 			return st

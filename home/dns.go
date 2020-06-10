@@ -267,6 +267,8 @@ func startDNSServer() error {
 
 	Context.dnsFilter.Start()
 	Context.filters.Start()
+	Context.filters0.Start()
+	Context.filters1.Start()
 	Context.filters2.Start()
 	Context.stats.Start()
 	Context.queryLog.Start()

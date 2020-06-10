@@ -46,9 +46,10 @@ type Filter struct {
 
 	Path string `yaml:"-"`
 
-	RuleCount   uint64    `yaml:"-"`
-	LastUpdated time.Time `yaml:"-"`
-	nextUpdate  time.Time
+	RuleCount    uint64    `yaml:"-"`
+	LastUpdated  time.Time `yaml:"-"`
+	nextUpdate   time.Time
+	networkError bool
 }
 
 const (

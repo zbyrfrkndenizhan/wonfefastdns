@@ -265,6 +265,7 @@ func (fs *filterStg) downloadFilter(f *Filter) error {
 			defer resp.Body.Close()
 		}
 		if err != nil {
+			f.networkError = true
 			return err
 		}
 
@@ -466,16 +467,17 @@ func (fs *filterStg) Refresh(flags uint) {
 //  . Update meta data
 // . Restart modules that use filters
 func (fs *filterStg) updateFilters() {
-	// const maxInterval = 1 * 60 * 60
-	// intval := 5 // use a dynamically increasing time interval
-
-	period := time.Hour
+	const maxPeriod = 1 * 60 * 60
+	period := 5 // use a dynamically increasing time interval, while network or DNS is down
 	for {
 		if fs.conf.UpdateIntervalHours == 0 {
+			period = maxPeriod
 			// update is disabled
-			time.Sleep(period)
+			time.Sleep(time.Duration(period) * time.Second)
 			continue
 		}
+
+		log.Debug("Filters: updating...")
 
 		var uf Filter
 		fs.confLock.Lock()
@@ -488,13 +490,22 @@ func (fs *filterStg) updateFilters() {
 		if f == nil {
 			fs.applyUpdate()
 
-			time.Sleep(period)
+			time.Sleep(time.Duration(period) * time.Second)
+			period += period
+			if period > maxPeriod {
+				period = maxPeriod
+			}
 			continue
 		}
 
 		uf.ID = fs.nextFilterID()
 		err := fs.downloadFilter(&uf)
 		if err != nil {
+			if uf.networkError {
+				fs.confLock.Lock()
+				f.nextUpdate = time.Now().Add(time.Duration(period) * time.Second)
+				fs.confLock.Unlock()
+			}
 			continue
 		}
 

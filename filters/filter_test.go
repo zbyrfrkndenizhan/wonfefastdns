@@ -1,4 +1,4 @@
-package home
+package filters
 
 import (
 	"fmt"
@@ -30,36 +30,43 @@ func testStartFilterListener() net.Listener {
 	return listener
 }
 
+func prepareTestDir() string {
+	const dir = "./agh-test"
+	_ = os.RemoveAll(dir)
+	_ = os.MkdirAll(dir, 0755)
+	return dir
+}
+
 func TestFilters(t *testing.T) {
 	l := testStartFilterListener()
 	defer func() { _ = l.Close() }()
 
 	dir := prepareTestDir()
 	defer func() { _ = os.RemoveAll(dir) }()
-	Context = homeContext{}
-	Context.workDir = dir
-	Context.client = &http.Client{
+
+	fconf := Conf{}
+	fconf.FilterDir = dir
+	fconf.HTTPClient = &http.Client{
 		Timeout: 5 * time.Second,
 	}
-	Context.filters.Init()
+	ff := New(fconf)
+	// ff.Start()
 
-	f := filter{
+	f := Filter{
 		URL: fmt.Sprintf("http://127.0.0.1:%d/filters/1.txt", l.Addr().(*net.TCPAddr).Port),
 	}
 
 	// download
-	ok, err := Context.filters.update(&f)
+	err := ff.Add(f)
 	assert.Equal(t, nil, err)
-	assert.True(t, ok)
-	assert.Equal(t, 3, f.RulesCount)
 
 	// refresh
-	ok, err = Context.filters.update(&f)
-	assert.True(t, !ok && err == nil)
+	st, err := ff.Modify(f.URL, false, "name", f.URL)
+	assert.Equal(t, StatusChangedEnabled, st)
 
-	err = Context.filters.load(&f)
-	assert.True(t, err == nil)
+	rf := ff.Delete(f.URL)
+	assert.NotNil(t, rf)
+	_ = os.Remove(rf.Path)
 
-	f.unload()
-	_ = os.Remove(f.Path())
+	ff.Close()
 }

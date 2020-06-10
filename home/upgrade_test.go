@@ -3,6 +3,8 @@ package home
 import (
 	"fmt"
 	"testing"
+
+	"github.com/AdguardTeam/AdGuardHome/filters"
 )
 
 func TestUpgrade1to2(t *testing.T) {
@@ -148,13 +150,13 @@ func compareConfigs(t *testing.T, oldConfig, newConfig *map[string]interface{}) 
 			if v != (*oldConfig)[k].(bool) {
 				t.Fatalf("wrong boolean value for %s", k)
 			}
-		case []filter:
-			if len((*oldConfig)[k].([]filter)) != len(value) {
-				t.Fatalf("wrong filters count. Before update: %d; After update: %d", len((*oldConfig)[k].([]filter)), len(value))
+		case []filters.Filter:
+			if len((*oldConfig)[k].([]filters.Filter)) != len(value) {
+				t.Fatalf("wrong filters count. Before update: %d; After update: %d", len((*oldConfig)[k].([]filters.Filter)), len(value))
 			}
 			for i, newFilter := range value {
-				oldFilter := (*oldConfig)[k].([]filter)[i]
-				if oldFilter.Enabled != newFilter.Enabled || oldFilter.Name != newFilter.Name || oldFilter.RulesCount != newFilter.RulesCount {
+				oldFilter := (*oldConfig)[k].([]filters.Filter)[i]
+				if oldFilter.Enabled != newFilter.Enabled || oldFilter.Name != newFilter.Name || oldFilter.RuleCount != newFilter.RuleCount {
 					t.Fatalf("old filter %s not equals new filter %s", oldFilter.Name, newFilter.Name)
 				}
 			}
@@ -179,16 +181,16 @@ func compareSchemaVersion(t *testing.T, newSchemaVersion interface{}, schemaVers
 func createTestDiskConfig(schemaVersion int) (diskConfig map[string]interface{}) {
 	diskConfig = make(map[string]interface{})
 	diskConfig["language"] = "en"
-	diskConfig["filters"] = []filter{
+	diskConfig["filters"] = []filters.Filter{
 		{
-			URL:        "https://filters.adtidy.org/android/filters/111_optimized.txt",
-			Name:       "Latvian filter",
-			RulesCount: 100,
+			URL:       "https://filters.adtidy.org/android/filters/111_optimized.txt",
+			Name:      "Latvian filter",
+			RuleCount: 100,
 		},
 		{
-			URL:        "https://easylist.to/easylistgermany/easylistgermany.txt",
-			Name:       "Germany filter",
-			RulesCount: 200,
+			URL:       "https://easylist.to/easylistgermany/easylistgermany.txt",
+			Name:      "Germany filter",
+			RuleCount: 200,
 		},
 	}
 	diskConfig["user_rules"] = []string{}

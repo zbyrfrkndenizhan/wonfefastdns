@@ -20,8 +20,7 @@ import (
 )
 
 const (
-	dataDir   = "data"    // data storage
-	filterDir = "filters" // cache location for downloaded filters, it's under DataDir
+	dataDir = "data" // data storage
 )
 
 // logSettings

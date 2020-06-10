@@ -174,15 +174,11 @@ func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string
 				st |= StatusChangedURL
 			}
 
-			break
+			return st
 		}
 	}
 
-	if st == 0 {
-		return StatusNotFound
-	}
-
-	return st
+	return StatusNotFound
 }
 
 // Get filter file name
@@ -374,12 +370,12 @@ func writeFile(f *Filter, reader io.Reader, outFile *os.File) error {
 		chunk = append(chunk, buf[:n]...)
 		s := string(chunk)
 		for len(s) != 0 {
-			chunk = []byte(s)
 			i, line := splitNext(&s, '\n')
 			if i < 0 && err != io.EOF {
 				// no more lines in the current chunk
 				break
 			}
+			chunk = []byte(s)
 
 			if len(line) == 0 ||
 				line[0] == '#' ||
@@ -425,6 +421,9 @@ func splitNext(data *string, by byte) (int, string) {
 
 // Refresh - begin filters update procedure
 func (fs *filterStg) Refresh(flags uint) {
+	fs.confLock.Lock()
+	defer fs.confLock.Unlock()
+
 	for i := range fs.conf.Proxylist {
 		f := &fs.conf.Proxylist[i]
 		f.nextUpdate = time.Time{}

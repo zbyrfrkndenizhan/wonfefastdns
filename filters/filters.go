@@ -29,8 +29,8 @@ type Filters interface {
 	Delete(url string) *Filter
 
 	// Modify - set filter properties (thread safe)
-	// Return Status* bitarray and error
-	Modify(url string, enabled bool, name string, newURL string) (int, error)
+	// Return Status* bitarray, old filter properties and error
+	Modify(url string, enabled bool, name string, newURL string) (int, Filter, error)
 
 	// Refresh - begin filters update procedure
 	Refresh(flags uint)
@@ -42,14 +42,14 @@ type Filter struct {
 	Enabled      bool   `yaml:"enabled"`
 	Name         string `yaml:"name"`
 	URL          string `yaml:"url"`
-	LastModified string `yaml:"last_modified"`
+	LastModified string `yaml:"last_modified"` // value of Last-Modified HTTP header field
 
 	Path string `yaml:"-"`
 
-	RuleCount    uint64    `yaml:"-"`
-	LastUpdated  time.Time `yaml:"-"`
-	nextUpdate   time.Time
-	networkError bool
+	RuleCount    uint64    `yaml:"-"` // number of rules.  0 means the file isn't loaded
+	LastUpdated  time.Time `yaml:"-"` // time of the last update (= file modification time)
+	nextUpdate   time.Time // time of the next update
+	networkError bool      // network error during download
 }
 
 const (

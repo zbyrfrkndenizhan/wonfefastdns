@@ -177,7 +177,7 @@ func (f *Filtering) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	st, err := filterN.Modify(req.URL, req.Data.Enabled, req.Data.Name, req.Data.URL)
+	st, _, err := filterN.Modify(req.URL, req.Data.Enabled, req.Data.Name, req.Data.URL)
 	if err != nil {
 		httpError2(r, w, http.StatusBadRequest, "%s", err)
 		return
@@ -187,6 +187,8 @@ func (f *Filtering) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 
 	if st == filters.StatusChangedEnabled ||
 		st == filters.StatusChangedURL {
+
+		// TODO filters.StatusChangedURL: delete old file
 
 		err = restartMods(req.Type)
 		if err != nil {

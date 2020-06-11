@@ -14,6 +14,7 @@ import (
 
 	"github.com/AdguardTeam/AdGuardHome/util"
 	"github.com/AdguardTeam/golibs/log"
+	"go.uber.org/atomic"
 )
 
 // filter storage object
@@ -22,6 +23,7 @@ type filterStg struct {
 	updated           []Filter
 	conf              Conf
 	confLock          sync.Mutex
+	nextID            atomic.Uint64
 
 	Users []EventHandler
 }
@@ -30,6 +32,7 @@ type filterStg struct {
 func newFiltersObj(conf Conf) Filters {
 	fs := filterStg{}
 	fs.conf = conf
+	fs.nextID.Store(uint64(time.Now().Unix()))
 	return &fs
 }
 
@@ -103,14 +106,14 @@ func (fs *filterStg) notifyUsers(flags uint) {
 // List (thread safe)
 func (fs *filterStg) List(flags uint) []Filter {
 	fs.confLock.Lock()
-	ff := make([]Filter, len(fs.conf.List))
-	for _, f := range fs.conf.List {
+	list := make([]Filter, len(fs.conf.List))
+	for i, f := range fs.conf.List {
 		nf := f
 		nf.Path = fs.filePath(f)
-		ff = append(ff, nf)
+		list[i] = nf
 	}
 	fs.confLock.Unlock()
-	return ff
+	return list
 }
 
 // Add - add filter (thread safe)
@@ -163,7 +166,7 @@ func (fs *filterStg) Delete(url string) *Filter {
 
 // Modify - set filter properties (thread safe)
 // Return Status* bitarray
-func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string) (int, error) {
+func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string) (int, Filter, error) {
 	fs.confLock.Lock()
 	defer fs.confLock.Unlock()
 
@@ -186,22 +189,39 @@ func (fs *filterStg) Modify(url string, enabled bool, name string, newURL string
 				st |= StatusChangedURL
 			}
 
+			needDownload := false
+
 			if (st & StatusChangedURL) != 0 {
 				f.ID = fs.nextFilterID()
+				needDownload = true
+
+			} else if (st&StatusChangedEnabled) != 0 && enabled {
+				fname := fs.filePath(*f)
+				file, err := os.OpenFile(fname, os.O_RDONLY, 0)
+				if err != nil {
+					log.Debug("Filters: os.OpenFile: %s %s", fname, err)
+					needDownload = true
+				} else {
+					_ = parseFilter(f, file)
+					file.Close()
+				}
+			}
+
+			if needDownload {
 				f.LastModified = ""
 				f.RuleCount = 0
 				err := fs.downloadFilter(f)
 				if err != nil {
 					*f = backup
-					return 0, err
+					return 0, Filter{}, err
 				}
 			}
 
-			return st, nil
+			return st, backup, nil
 		}
 	}
 
-	return 0, fmt.Errorf("filter %s not found", url)
+	return 0, Filter{}, fmt.Errorf("filter %s not found", url)
 }
 
 // Get filter file name
@@ -211,7 +231,7 @@ func (fs *filterStg) filePath(f Filter) string {
 
 // Get next filter ID
 func (fs *filterStg) nextFilterID() uint64 {
-	return uint64(time.Now().Unix())
+	return fs.nextID.Inc()
 }
 
 // Allows printable UTF-8 text with CR, LF, TAB characters

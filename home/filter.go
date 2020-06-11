@@ -44,41 +44,44 @@ func defaultFilters() []filters.Filter {
 }
 
 func enableFilters(async bool) {
-	var filters []dnsfilter.Filter
-	var whiteFilters []dnsfilter.Filter
+	var blockFilters []dnsfilter.Filter
+	var allowFilters []dnsfilter.Filter
 	if config.DNS.FilteringEnabled {
 		// convert array of filters
 
-		f := dnsfilter.Filter{
+		// add user filter
+		userFilter := dnsfilter.Filter{
 			ID:   0,
 			Data: []byte(strings.Join(config.UserRules, "\n")),
 		}
-		filters = append(filters, f)
+		blockFilters = append(blockFilters, userFilter)
 
-		filtrs := Context.filters0.List(0)
-		for _, filter := range filtrs {
-			if !filter.Enabled {
+		// add blocklist filters
+		list := Context.filters0.List(0)
+		for _, f := range list {
+			if !f.Enabled || f.RuleCount == 0 {
 				continue
 			}
 			f := dnsfilter.Filter{
-				ID:       int64(filter.ID),
-				FilePath: filter.Path,
+				ID:       int64(f.ID),
+				FilePath: f.Path,
 			}
-			filters = append(filters, f)
+			blockFilters = append(blockFilters, f)
 		}
 
-		filtrs = Context.filters1.List(0)
-		for _, filter := range filtrs {
-			if !filter.Enabled {
+		// add allowlist filters
+		list = Context.filters1.List(0)
+		for _, f := range list {
+			if !f.Enabled || f.RuleCount == 0 {
 				continue
 			}
 			f := dnsfilter.Filter{
-				ID:       int64(filter.ID),
-				FilePath: filter.Path,
+				ID:       int64(f.ID),
+				FilePath: f.Path,
 			}
-			whiteFilters = append(whiteFilters, f)
+			allowFilters = append(allowFilters, f)
 		}
 	}
 
-	_ = Context.dnsFilter.SetFilters(filters, whiteFilters, async)
+	_ = Context.dnsFilter.SetFilters(blockFilters, allowFilters, async)
 }

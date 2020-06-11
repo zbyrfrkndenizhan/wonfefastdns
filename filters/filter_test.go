@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
-func testStartFilterListener(counter *int) net.Listener {
+func testStartFilterListener(counter *atomic.Uint32) net.Listener {
 	http.HandleFunc("/filters/1.txt", func(w http.ResponseWriter, r *http.Request) {
-		*counter++
+		(*counter).Inc()
 		content := `||example.org^$third-party
 # Inline comment example
 ||example.com^$third-party
@@ -22,7 +23,7 @@ func testStartFilterListener(counter *int) net.Listener {
 		_, _ = w.Write([]byte(content))
 	})
 	http.HandleFunc("/filters/2.txt", func(w http.ResponseWriter, r *http.Request) {
-		*counter++
+		(*counter).Inc()
 		content := `||example.org^$third-party
 # Inline comment example
 ||example.com^$third-party
@@ -51,7 +52,7 @@ func prepareTestDir() string {
 }
 
 func TestFilters(t *testing.T) {
-	counter := 0
+	counter := atomic.Uint32{}
 	lhttp := testStartFilterListener(&counter)
 	defer func() { _ = lhttp.Close() }()
 
@@ -112,14 +113,14 @@ func TestFilters(t *testing.T) {
 	st, _, err = fs.Modify(newURL, true, "name", newURL)
 	assert.Equal(t, StatusChangedEnabled, st)
 
-	cnt := counter
+	cnt := counter.Load()
 	fs.Refresh(0)
 	for i := 0; ; i++ {
 		if i == 2 {
 			assert.True(t, false)
 			break
 		}
-		if cnt != counter {
+		if cnt != counter.Load() {
 			// filter was updated
 			break
 		}

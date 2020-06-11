@@ -64,7 +64,7 @@ func restartMods(t string) error {
 
 	case "blocklist",
 		"whitelist":
-		enableFilters(false)
+		enableFilters(true)
 
 	case "proxylist":
 		Context.mitmProxy.Close()
@@ -320,7 +320,14 @@ func (f *Filtering) handleFilteringConfig(w http.ResponseWriter, r *http.Request
 
 	config.DNS.FilteringEnabled = req.Enabled
 	config.DNS.FiltersUpdateIntervalHours = req.Interval
+
+	c := filters.Conf{}
+	c.UpdateIntervalHours = req.Interval
+	Context.filters0.SetConfig(c)
+	Context.filters1.SetConfig(c)
+
 	onConfigModified()
+
 	enableFilters(true)
 }
 

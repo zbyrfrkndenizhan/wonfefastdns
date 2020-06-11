@@ -11,8 +11,20 @@ import (
 type Filtering struct {
 }
 
+func (f *Filtering) onFiltersChanged(flags uint) {
+	switch flags {
+	case filters.EventBeforeUpdate:
+		//
+
+	case filters.EventAfterUpdate:
+		enableFilters(true)
+	}
+}
+
 // Start - start the module
 func (f *Filtering) Start() {
+	Context.filters0.AddUser(f.onFiltersChanged)
+	Context.filters1.AddUser(f.onFiltersChanged)
 	f.RegisterFilteringHandlers()
 }
 

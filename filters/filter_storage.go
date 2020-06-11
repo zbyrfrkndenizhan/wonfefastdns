@@ -20,19 +20,21 @@ import (
 // filter storage object
 type filterStg struct {
 	updateTaskRunning bool
-	updated           []Filter
-	conf              Conf
-	confLock          sync.Mutex
-	nextID            atomic.Uint64
-	updateChan        chan bool
+	updated           []Filter  // list of filters that were downloaded during update procedure
+	updateChan        chan bool // signal for the update goroutine
 
-	Users []EventHandler
+	conf     *Conf
+	confLock sync.Mutex
+	nextID   atomic.Uint64 // next filter ID
+
+	Users []EventHandler // user handler functions for notifications
 }
 
 // initialize the module
 func newFiltersObj(conf Conf) Filters {
 	fs := filterStg{}
-	fs.conf = conf
+	fs.conf = &Conf{}
+	*fs.conf = conf
 	fs.nextID.Store(uint64(time.Now().Unix()))
 	fs.updateChan = make(chan bool, 2)
 	return &fs
@@ -42,6 +44,9 @@ func newFiltersObj(conf Conf) Filters {
 func (fs *filterStg) Start() {
 	_ = os.MkdirAll(fs.conf.FilterDir, 0755)
 
+	// Load all enabled filters
+	// On error, RuleCount is set to 0 - users won't try to use such filters
+	//  and in the future the update procedure will re-download the file
 	for i := range fs.conf.List {
 		f := &fs.conf.List[i]
 
@@ -52,7 +57,6 @@ func (fs *filterStg) Start() {
 			continue
 		}
 		f.LastUpdated = st.ModTime()
-		f.nextUpdate = f.LastUpdated.Add(time.Duration(fs.conf.UpdateIntervalHours) * time.Hour)
 
 		if !f.Enabled {
 			continue
@@ -66,6 +70,8 @@ func (fs *filterStg) Start() {
 
 		_ = parseFilter(f, file)
 		file.Close()
+
+		f.nextUpdate = f.LastUpdated.Add(time.Duration(fs.conf.UpdateIntervalHours) * time.Hour)
 	}
 
 	if !fs.updateTaskRunning {
@@ -91,9 +97,14 @@ func arrayFilterDup(f []Filter) []Filter {
 // WriteDiskConfig - write configuration on disk
 func (fs *filterStg) WriteDiskConfig(c *Conf) {
 	fs.confLock.Lock()
-	*c = fs.conf
+	*c = *fs.conf
 	c.List = arrayFilterDup(fs.conf.List)
 	fs.confLock.Unlock()
+}
+
+// SetConfig - set new configuration settings
+func (fs *filterStg) SetConfig(c Conf) {
+	fs.conf.UpdateIntervalHours = c.UpdateIntervalHours
 }
 
 // AddUser - add user handler for notifications

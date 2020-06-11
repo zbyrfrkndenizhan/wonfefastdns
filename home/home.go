@@ -274,21 +274,21 @@ func run(args options) {
 	}
 
 	fconf := filters.Conf{}
-	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters")
+	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters_dnsblock")
 	fconf.List = config.Filters
 	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.HTTPClient = Context.client
 	Context.filters0 = filters.New(fconf)
 
 	fconf = filters.Conf{}
-	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters")
+	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters_dnsallow")
 	fconf.List = config.WhitelistFilters
 	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.HTTPClient = Context.client
 	Context.filters1 = filters.New(fconf)
 
 	fconf = filters.Conf{}
-	fconf.FilterDir = filepath.Join(Context.getDataDir(), "http_filters")
+	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters_mitmproxy")
 	fconf.List = config.ProxyFilters
 	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.HTTPClient = Context.client

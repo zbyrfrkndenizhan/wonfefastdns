@@ -16,6 +16,10 @@ type Filters interface {
 	// WriteDiskConfig - write configuration on disk
 	WriteDiskConfig(c *Conf)
 
+	// SetConfig - set new configuration settings
+	// Currently only UpdateIntervalHours is supported
+	SetConfig(c Conf)
+
 	// AddUser - add user handler for notifications
 	AddUser(handler EventHandler)
 
@@ -46,7 +50,10 @@ type Filter struct {
 
 	Path string `yaml:"-"`
 
-	RuleCount    uint64    `yaml:"-"` // number of rules.  0 means the file isn't loaded
+	// number of rules
+	// 0 means the file isn't loaded - user shouldn't use this filter
+	RuleCount uint64 `yaml:"-"`
+
 	LastUpdated  time.Time `yaml:"-"` // time of the last update (= file modification time)
 	nextUpdate   time.Time // time of the next update
 	networkError bool      // network error during download

@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testStartFilterListener() net.Listener {
+func testStartFilterListener(counter *int) net.Listener {
 	http.HandleFunc("/filters/1.txt", func(w http.ResponseWriter, r *http.Request) {
+		*counter++
 		content := `||example.org^$third-party
 # Inline comment example
 ||example.com^$third-party
@@ -21,6 +22,7 @@ func testStartFilterListener() net.Listener {
 		_, _ = w.Write([]byte(content))
 	})
 	http.HandleFunc("/filters/2.txt", func(w http.ResponseWriter, r *http.Request) {
+		*counter++
 		content := `||example.org^$third-party
 # Inline comment example
 ||example.com^$third-party
@@ -49,19 +51,21 @@ func prepareTestDir() string {
 }
 
 func TestFilters(t *testing.T) {
-	lhttp := testStartFilterListener()
+	counter := 0
+	lhttp := testStartFilterListener(&counter)
 	defer func() { _ = lhttp.Close() }()
 
 	dir := prepareTestDir()
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	fconf := Conf{}
+	fconf.UpdateIntervalHours = 1
 	fconf.FilterDir = dir
 	fconf.HTTPClient = &http.Client{
 		Timeout: 5 * time.Second,
 	}
 	fs := New(fconf)
-	// fs.Start()
+	fs.Start()
 
 	port := lhttp.Addr().(*net.TCPAddr).Port
 	URL := fmt.Sprintf("http://127.0.0.1:%d/filters/1.txt", port)
@@ -103,6 +107,24 @@ func TestFilters(t *testing.T) {
 	assert.Equal(t, newURL, l[0].URL)
 	assert.Equal(t, uint64(4), l[0].RuleCount)
 	assert.True(t, modified.ID != l[0].ID)
+
+	// enable
+	st, _, err = fs.Modify(newURL, true, "name", newURL)
+	assert.Equal(t, StatusChangedEnabled, st)
+
+	cnt := counter
+	fs.Refresh(0)
+	for i := 0; ; i++ {
+		if i == 2 {
+			assert.True(t, false)
+			break
+		}
+		if cnt != counter {
+			// filter was updated
+			break
+		}
+		time.Sleep(time.Second)
+	}
 
 	removed := fs.Delete(newURL)
 	assert.NotNil(t, removed)

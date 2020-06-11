@@ -24,6 +24,7 @@ type filterStg struct {
 	conf              Conf
 	confLock          sync.Mutex
 	nextID            atomic.Uint64
+	updateChan        chan bool
 
 	Users []EventHandler
 }
@@ -33,6 +34,7 @@ func newFiltersObj(conf Conf) Filters {
 	fs := filterStg{}
 	fs.conf = conf
 	fs.nextID.Store(uint64(time.Now().Unix()))
+	fs.updateChan = make(chan bool, 2)
 	return &fs
 }
 
@@ -68,12 +70,15 @@ func (fs *filterStg) Start() {
 
 	if !fs.updateTaskRunning {
 		fs.updateTaskRunning = true
-		go fs.updateFilters()
+		go fs.updateBySignal()
+		go fs.updateByTimer()
 	}
 }
 
 // Close - close the module
 func (fs *filterStg) Close() {
+	fs.updateChan <- false
+	close(fs.updateChan)
 }
 
 // Duplicate filter array
@@ -472,9 +477,46 @@ func (fs *filterStg) Refresh(flags uint) {
 		f := &fs.conf.List[i]
 		f.nextUpdate = time.Time{}
 	}
+
+	fs.updateChan <- true
 }
 
-// Periodically update filters
+// Start update procedure periodically
+func (fs *filterStg) updateByTimer() {
+	const maxPeriod = 1 * 60 * 60
+	period := 5 // use a dynamically increasing time interval, while network or DNS is down
+	for {
+		if fs.conf.UpdateIntervalHours == 0 {
+			period = maxPeriod
+			// update is disabled
+			time.Sleep(time.Duration(period) * time.Second)
+			continue
+		}
+
+		fs.updateChan <- true
+
+		time.Sleep(time.Duration(period) * time.Second)
+		period += period
+		if period > maxPeriod {
+			period = maxPeriod
+		}
+	}
+}
+
+// Begin update procedure by signal
+func (fs *filterStg) updateBySignal() {
+	for {
+		select {
+		case ok := <-fs.updateChan:
+			if !ok {
+				return
+			}
+			fs.updateAll()
+		}
+	}
+}
+
+// Update filters
 // Algorithm:
 // . Get next filter to update:
 //  . Download data from Internet and store on disk (in a new file)
@@ -486,19 +528,10 @@ func (fs *filterStg) Refresh(flags uint) {
 //  . Rename "new file name" -> "old file name"
 //  . Update meta data
 // . Restart modules that use filters
-func (fs *filterStg) updateFilters() {
-	const maxPeriod = 1 * 60 * 60
-	period := 5 // use a dynamically increasing time interval, while network or DNS is down
+func (fs *filterStg) updateAll() {
+	log.Debug("Filters: updating...")
+
 	for {
-		if fs.conf.UpdateIntervalHours == 0 {
-			period = maxPeriod
-			// update is disabled
-			time.Sleep(time.Duration(period) * time.Second)
-			continue
-		}
-
-		log.Debug("Filters: updating...")
-
 		var uf Filter
 		fs.confLock.Lock()
 		f := fs.getNextToUpdate()
@@ -509,13 +542,7 @@ func (fs *filterStg) updateFilters() {
 
 		if f == nil {
 			fs.applyUpdate()
-
-			time.Sleep(time.Duration(period) * time.Second)
-			period += period
-			if period > maxPeriod {
-				period = maxPeriod
-			}
-			continue
+			return
 		}
 
 		uf.ID = fs.nextFilterID()
@@ -523,7 +550,7 @@ func (fs *filterStg) updateFilters() {
 		if err != nil {
 			if uf.networkError {
 				fs.confLock.Lock()
-				f.nextUpdate = time.Now().Add(time.Duration(period) * time.Second)
+				f.nextUpdate = time.Now().Add(10 * time.Second)
 				fs.confLock.Unlock()
 			}
 			continue

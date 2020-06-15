@@ -170,7 +170,7 @@ func TestHome(t *testing.T) {
 	assert.True(t, haveIP)
 
 	for i := 1; ; i++ {
-		st, err := os.Stat(filepath.Join(dir, "data", "filters", "1.txt"))
+		st, err := os.Stat(filepath.Join(dir, "data", "filters_dnsblock", "1.txt"))
 		if err == nil && st.Size() != 0 {
 			break
 		}

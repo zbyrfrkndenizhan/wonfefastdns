@@ -53,7 +53,7 @@ func (fs *filterStg) Start() {
 		fname := fs.filePath(*f)
 		st, err := os.Stat(fname)
 		if err != nil {
-			log.Error("Filters: os.Stat: %s %s", fname, err)
+			log.Debug("Filters: os.Stat: %s %s", fname, err)
 			continue
 		}
 		f.LastUpdated = st.ModTime()

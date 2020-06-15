@@ -262,6 +262,7 @@ func isPrintableText(data []byte) bool {
 }
 
 // Download filter data
+// Return nil on success.  Set f.Path to a file path, or "" if the file was not modified
 func (fs *filterStg) downloadFilter(f *Filter) error {
 	log.Debug("Filters: Downloading filter from %s", f.URL)
 
@@ -309,6 +310,7 @@ func (fs *filterStg) downloadFilter(f *Filter) error {
 			log.Debug("Filters: filter %s isn't modified since %s",
 				f.URL, f.LastModified)
 			f.LastUpdated = time.Now()
+			f.Path = ""
 			return nil
 
 		} else if resp.StatusCode != 200 {

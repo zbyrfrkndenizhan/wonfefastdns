@@ -273,7 +273,7 @@ func (f *Filtering) handleFilteringStatus(w http.ResponseWriter, r *http.Request
 	resp.Enabled = config.DNS.FilteringEnabled
 	resp.Interval = config.DNS.FiltersUpdateIntervalHours
 	resp.UserRules = config.UserRules
-	config.RUnlock()
+	config.Unlock()
 
 	f0 := Context.filters0.List(0)
 	f1 := Context.filters1.List(0)

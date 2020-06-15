@@ -1492,6 +1492,7 @@ Request:
 	"data": {
 		"name": "..."
 		"url": "..."
+		"enabled": true
 	}
 	}
 

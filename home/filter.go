@@ -23,8 +23,8 @@ func (f *Filtering) onFiltersChanged(flags uint) {
 
 // Start - start the module
 func (f *Filtering) Start() {
-	Context.filters0.AddUser(f.onFiltersChanged)
-	Context.filters1.AddUser(f.onFiltersChanged)
+	Context.filters0.SetObserver(f.onFiltersChanged)
+	Context.filters1.SetObserver(f.onFiltersChanged)
 	f.RegisterFilteringHandlers()
 }
 
@@ -32,29 +32,8 @@ func (f *Filtering) Start() {
 func (f *Filtering) Close() {
 }
 
-func defaultFilters() []filters.Filter {
-	return []filters.Filter{
-		{
-			ID:      1,
-			Enabled: true,
-			URL:     "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
-			Name:    "AdGuard Simplified Domain Names filter",
-		},
-		{
-			ID:      2,
-			Enabled: false,
-			URL:     "https://adaway.org/hosts.txt",
-			Name:    "AdAway",
-		},
-		{
-			ID:      3,
-			Enabled: false,
-			URL:     "https://www.malwaredomainlist.com/hostslist/hosts.txt",
-			Name:    "MalwareDomainList.com Hosts List",
-		},
-	}
-}
-
+// Activate new DNS filters
+// async: do it asynchronously (the function returns immediately)
 func enableFilters(async bool) {
 	var blockFilters []dnsfilter.Filter
 	var allowFilters []dnsfilter.Filter

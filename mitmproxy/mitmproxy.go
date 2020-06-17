@@ -71,7 +71,7 @@ func New(conf Config) *MITMProxy {
 		p.initWeb()
 	}
 
-	p.conf.Filter.AddUser(p.onFiltersChanged)
+	p.conf.Filter.SetObserver(p.onFiltersChanged)
 
 	return &p
 }

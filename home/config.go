@@ -165,7 +165,43 @@ func initConfig() {
 	config.DNS.DnsfilterConf.SafeSearchCacheSize = 1 * 1024 * 1024
 	config.DNS.DnsfilterConf.ParentalCacheSize = 1 * 1024 * 1024
 	config.DNS.DnsfilterConf.CacheTime = 30
-	config.Filters = defaultFilters()
+	config.Filters = defaultDNSBlocklistFilters()
+
+	config.ProxyFilters = defaultContentFilters()
+}
+
+func defaultDNSBlocklistFilters() []filters.Filter {
+	return []filters.Filter{
+		{
+			ID:      1,
+			Enabled: true,
+			URL:     "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
+			Name:    "AdGuard Simplified Domain Names filter",
+		},
+		{
+			ID:      2,
+			Enabled: false,
+			URL:     "https://adaway.org/hosts.txt",
+			Name:    "AdAway",
+		},
+		{
+			ID:      3,
+			Enabled: false,
+			URL:     "https://www.malwaredomainlist.com/hostslist/hosts.txt",
+			Name:    "MalwareDomainList.com Hosts List",
+		},
+	}
+}
+
+func defaultContentFilters() []filters.Filter {
+	return []filters.Filter{
+		{
+			ID:      1,
+			Enabled: true,
+			URL:     "https://filters.adtidy.org/extension/chromium/filters/2.txt",
+			Name:    "AdGuard Base filter",
+		},
+	}
 }
 
 // getConfigFilename returns path to the current config file

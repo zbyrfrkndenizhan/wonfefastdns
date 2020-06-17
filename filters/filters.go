@@ -20,8 +20,8 @@ type Filters interface {
 	// Currently only UpdateIntervalHours is supported
 	SetConfig(c Conf)
 
-	// AddUser - add user handler for notifications
-	AddUser(handler EventHandler)
+	// SetObserver - set user handler for notifications
+	SetObserver(handler EventHandler)
 
 	// List (thread safe)
 	List(flags uint) []Filter

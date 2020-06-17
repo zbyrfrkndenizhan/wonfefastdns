@@ -116,6 +116,7 @@ func TestFilters(t *testing.T) {
 	st, _, err = fs.Modify(newURL, true, "name", newURL)
 	assert.Equal(t, StatusChangedEnabled, st)
 
+	// update
 	cnt := counter.Load()
 	fs.Refresh(0)
 	for i := 0; ; i++ {
@@ -130,6 +131,7 @@ func TestFilters(t *testing.T) {
 		time.Sleep(time.Second)
 	}
 
+	// delete
 	removed := fs.Delete(newURL)
 	assert.NotNil(t, removed)
 	_ = os.Remove(removed.Path)

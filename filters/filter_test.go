@@ -54,6 +54,18 @@ func prepareTestDir() string {
 	return dir
 }
 
+var updateStatus = 0
+
+func onFiltersUpdate(flags uint) {
+	switch flags {
+	case EventBeforeUpdate:
+		updateStatus |= 1
+
+	case EventAfterUpdate:
+		updateStatus |= 2
+	}
+}
+
 func TestFilters(t *testing.T) {
 	counter := atomic.Uint32{}
 	lhttp := testStartFilterListener(&counter)
@@ -117,6 +129,7 @@ func TestFilters(t *testing.T) {
 	assert.Equal(t, StatusChangedEnabled, st)
 
 	// update
+	fs.SetObserver(onFiltersUpdate)
 	cnt := counter.Load()
 	fs.Refresh(0)
 	for i := 0; ; i++ {
@@ -130,6 +143,7 @@ func TestFilters(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	}
+	assert.Equal(t, 1|2, updateStatus)
 
 	// delete
 	removed := fs.Delete(newURL)

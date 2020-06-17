@@ -69,7 +69,7 @@ type homeContext struct {
 	dnsFilter  *dnsfilter.Dnsfilter // DNS filtering module
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
-	filters    *filters.Filtering    // DNS filtering module
+	filters    *filters.Filtering   // DNS filtering module
 	web        *Web                 // Web (HTTP, HTTPS) module
 	tls        *TLSMod              // TLS module
 	autoHosts  util.AutoHosts       // IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files

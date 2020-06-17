@@ -309,21 +309,17 @@ func (c *configuration) write() error {
 		config.DNS.DnsfilterConf = c
 	}
 
-	if Context.filters0 != nil {
-		c := filters.Conf{}
-		Context.filters0.WriteDiskConfig(&c)
-		config.Filters = c.List
-	}
-	if Context.filters1 != nil {
-		c := filters.Conf{}
-		Context.filters1.WriteDiskConfig(&c)
-		config.WhitelistFilters = c.List
-	}
-	if Context.filters2 != nil {
-		c := filters.Conf{}
-		Context.filters2.WriteDiskConfig(&c)
-		config.ProxyFilters = c.List
-	}
+	fconf := filters.Conf{}
+	Context.filters.WriteDiskConfig(filters.DNSBlocklist, &fconf)
+	config.Filters = fconf.List
+
+	fconf = filters.Conf{}
+	Context.filters.WriteDiskConfig(filters.DNSAllowlist, &fconf)
+	config.WhitelistFilters = fconf.List
+
+	fconf = filters.Conf{}
+	Context.filters.WriteDiskConfig(filters.Proxylist, &fconf)
+	config.ProxyFilters = fconf.List
 
 	if Context.dnsServer != nil {
 		c := dnsforward.FilteringConfig{}

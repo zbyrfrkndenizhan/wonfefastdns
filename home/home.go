@@ -69,10 +69,7 @@ type homeContext struct {
 	dnsFilter  *dnsfilter.Dnsfilter // DNS filtering module
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
-	filters    Filtering            // DNS filtering module
-	filters0   filters.Filters      // DNS blocklist filters
-	filters1   filters.Filters      // DNS allowlist filters
-	filters2   filters.Filters      // MITM Proxy filtering module
+	filters    filters.Filtering    // DNS filtering module
 	web        *Web                 // Web (HTTP, HTTPS) module
 	tls        *TLSMod              // TLS module
 	autoHosts  util.AutoHosts       // IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files
@@ -273,31 +270,18 @@ func run(args options) {
 		log.Fatalf("Cannot create DNS data dir at %s: %s", Context.getDataDir(), err)
 	}
 
-	fconf := filters.Conf{}
-	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters_dnsblock")
-	fconf.List = config.Filters
-	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
+	fconf := filters.ModuleConf{}
+	fconf.DataDir = Context.getDataDir()
+	fconf.DNSBlocklist = config.Filters
+	fconf.DNSAllowlist = config.WhitelistFilters
+	fconf.Proxylist = config.ProxyFilters
 	fconf.HTTPClient = Context.client
-	Context.filters0 = filters.New(fconf)
-
-	fconf = filters.Conf{}
-	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters_dnsallow")
-	fconf.List = config.WhitelistFilters
-	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
-	fconf.HTTPClient = Context.client
-	Context.filters1 = filters.New(fconf)
-
-	fconf = filters.Conf{}
-	fconf.FilterDir = filepath.Join(Context.getDataDir(), "filters_mitmproxy")
-	fconf.List = config.ProxyFilters
-	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
-	fconf.HTTPClient = Context.client
-	Context.filters2 = filters.New(fconf)
+	Context.filters.Init(fconf)
 
 	config.MITM.CertDir = Context.getDataDir()
 	config.MITM.ConfigModified = onConfigModified
 	config.MITM.HTTPRegister = httpRegister
-	config.MITM.Filter = Context.filters2
+	config.MITM.Filter = Context.filters.GetList(filters.Proxylist)
 	Context.mitmProxy = mitmproxy.New(config.MITM)
 	if Context.mitmProxy == nil {
 		os.Exit(1)

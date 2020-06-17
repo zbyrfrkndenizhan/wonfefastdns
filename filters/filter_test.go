@@ -13,7 +13,9 @@ import (
 )
 
 func testStartFilterListener(counter *atomic.Uint32) net.Listener {
-	http.HandleFunc("/filters/1.txt", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/filters/1.txt", func(w http.ResponseWriter, r *http.Request) {
 		(*counter).Inc()
 		content := `||example.org^$third-party
 # Inline comment example
@@ -22,7 +24,8 @@ func testStartFilterListener(counter *atomic.Uint32) net.Listener {
 `
 		_, _ = w.Write([]byte(content))
 	})
-	http.HandleFunc("/filters/2.txt", func(w http.ResponseWriter, r *http.Request) {
+
+	mux.HandleFunc("/filters/2.txt", func(w http.ResponseWriter, r *http.Request) {
 		(*counter).Inc()
 		content := `||example.org^$third-party
 # Inline comment example
@@ -39,7 +42,7 @@ func testStartFilterListener(counter *atomic.Uint32) net.Listener {
 	}
 
 	go func() {
-		_ = http.Serve(listener, nil)
+		_ = http.Serve(listener, mux)
 	}()
 	return listener
 }

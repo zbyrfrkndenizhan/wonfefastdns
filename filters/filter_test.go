@@ -81,6 +81,7 @@ func TestFilters(t *testing.T) {
 		Timeout: 5 * time.Second,
 	}
 	fs := New(fconf)
+	fs.SetObserver(onFiltersUpdate)
 	fs.Start()
 
 	port := lhttp.Addr().(*net.TCPAddr).Port
@@ -129,7 +130,6 @@ func TestFilters(t *testing.T) {
 	assert.Equal(t, StatusChangedEnabled, st)
 
 	// update
-	fs.SetObserver(onFiltersUpdate)
 	cnt := counter.Load()
 	fs.Refresh(0)
 	for i := 0; ; i++ {

@@ -42,33 +42,24 @@ func IsValidURL(rawurl string) bool {
 
 func (f *Filtering) getFilterModule(t string) Filters {
 	switch t {
-
 	case "blocklist":
-		return f.filters0
+		return f.dnsBlocklist
+
 	case "whitelist":
-		return f.filters1
+		return f.dnsAllowlist
 
 	case "proxylist":
-		return f.filters2
+		return f.Proxylist
 
 	default:
 		return nil
 	}
 }
 
-func restartMods(t string) error {
-	switch t {
-
-	case "blocklist",
-		"whitelist":
-		enableFilters(true)
-
-	case "proxylist":
-		Context.mitmProxy.Close()
-		return Context.mitmProxy.Restart()
-	}
-
-	return nil
+func (f *Filtering) restartMods(t string) {
+	fN := f.getFilterModule(t)
+	fN.NotifyObserver(EventBeforeUpdate)
+	fN.NotifyObserver(EventAfterUpdate)
 }
 
 func (f *Filtering) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
@@ -103,11 +94,7 @@ func (f *Filtering) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 
 	f.conf.ConfigModified()
 
-	err = restartMods(req.Type)
-	if err != nil {
-		httpError2(r, w, http.StatusInternalServerError, "restart: %s", err)
-		return
-	}
+	f.restartMods(req.Type)
 }
 
 func (f *Filtering) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
@@ -137,11 +124,7 @@ func (f *Filtering) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 	f.conf.ConfigModified()
 
 	if removed.Enabled {
-		err = restartMods(req.Type)
-		if err != nil {
-			httpError2(r, w, http.StatusInternalServerError, "restart: %s", err)
-			// fallthrough
-		}
+		f.restartMods(req.Type)
 	}
 
 	err = os.Remove(removed.Path)
@@ -187,11 +170,7 @@ func (f *Filtering) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 
 		// TODO StatusChangedURL: delete old file
 
-		err = restartMods(req.Type)
-		if err != nil {
-			httpError2(r, w, http.StatusInternalServerError, "restart: %s", err)
-			return
-		}
+		f.restartMods(req.Type)
 	}
 }
 
@@ -202,9 +181,9 @@ func (f *Filtering) handleFilteringSetRules(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	config.UserRules = strings.Split(string(body), "\n")
+	f.conf.UserRules = strings.Split(string(body), "\n")
 	f.conf.ConfigModified()
-	enableFilters(true)
+	f.restartMods("blocklist")
 }
 
 func (f *Filtering) handleFilteringRefresh(w http.ResponseWriter, r *http.Request) {
@@ -266,15 +245,13 @@ func (f *Filtering) handleFilteringStatus(w http.ResponseWriter, r *http.Request
 	}
 	resp := respJSON{}
 
-	config.Lock()
-	resp.Enabled = config.DNS.FilteringEnabled
-	resp.Interval = config.DNS.FiltersUpdateIntervalHours
-	resp.UserRules = config.UserRules
-	config.Unlock()
+	resp.Enabled = f.conf.Enabled
+	resp.Interval = f.conf.UpdateIntervalHours
+	resp.UserRules = f.conf.UserRules
 
-	f0 := f.filters0.List(0)
-	f1 := f.filters1.List(0)
-	f2 := f.filters2.List(0)
+	f0 := f.dnsBlocklist.List(0)
+	f1 := f.dnsAllowlist.List(0)
+	f2 := f.Proxylist.List(0)
 
 	for _, filt := range f0 {
 		fj := filterToJSON(filt)
@@ -310,22 +287,29 @@ func (f *Filtering) handleFilteringConfig(w http.ResponseWriter, r *http.Request
 		httpError2(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
-	if !checkFiltersUpdateIntervalHours(req.Interval) {
+	if !CheckFiltersUpdateIntervalHours(req.Interval) {
 		httpError2(r, w, http.StatusBadRequest, "Unsupported interval")
 		return
 	}
 
-	config.DNS.FilteringEnabled = req.Enabled
-	config.DNS.FiltersUpdateIntervalHours = req.Interval
+	restart := false
+	if f.conf.Enabled != req.Enabled {
+		restart = true
+	}
+	f.conf.Enabled = req.Enabled
+	f.conf.UpdateIntervalHours = req.Interval
 
 	c := Conf{}
 	c.UpdateIntervalHours = req.Interval
-	f.filters0.SetConfig(c)
-	f.filters1.SetConfig(c)
+	f.dnsBlocklist.SetConfig(c)
+	f.dnsAllowlist.SetConfig(c)
+	f.Proxylist.SetConfig(c)
 
 	f.conf.ConfigModified()
 
-	enableFilters(true)
+	if restart {
+		f.restartMods("blocklist")
+	}
 }
 
 // registerWebHandlers - register handlers
@@ -339,6 +323,7 @@ func (f *Filtering) registerWebHandlers() {
 	f.conf.HTTPRegister("POST", "/control/filtering/set_rules", f.handleFilteringSetRules)
 }
 
-func checkFiltersUpdateIntervalHours(i uint32) bool {
+// CheckFiltersUpdateIntervalHours - verify update interval
+func CheckFiltersUpdateIntervalHours(i uint32) bool {
 	return i == 0 || i == 1 || i == 12 || i == 1*24 || i == 3*24 || i == 7*24
 }

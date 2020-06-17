@@ -23,6 +23,9 @@ type Filters interface {
 	// SetObserver - set user handler for notifications
 	SetObserver(handler EventHandler)
 
+	// NotifyObserver - notify users about the event
+	NotifyObserver(flags uint)
+
 	// List (thread safe)
 	List(flags uint) []Filter
 

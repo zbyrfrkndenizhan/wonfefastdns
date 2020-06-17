@@ -125,7 +125,7 @@ func (fs *filterStg) applyUpdate() {
 		return
 	}
 
-	fs.notifyUsers(EventBeforeUpdate)
+	fs.NotifyObserver(EventBeforeUpdate)
 
 	nUpdated := 0
 
@@ -172,5 +172,5 @@ func (fs *filterStg) applyUpdate() {
 	log.Debug("Filters: %d filters were updated", nUpdated)
 
 	fs.updated = nil
-	fs.notifyUsers(EventAfterUpdate)
+	fs.NotifyObserver(EventAfterUpdate)
 }

@@ -69,7 +69,7 @@ type homeContext struct {
 	dnsFilter  *dnsfilter.Dnsfilter // DNS filtering module
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
-	filters    filters.Filtering    // DNS filtering module
+	filters    *filters.Filtering    // DNS filtering module
 	web        *Web                 // Web (HTTP, HTTPS) module
 	tls        *TLSMod              // TLS module
 	autoHosts  util.AutoHosts       // IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files
@@ -271,12 +271,17 @@ func run(args options) {
 	}
 
 	fconf := filters.ModuleConf{}
+	fconf.Enabled = config.DNS.FilteringEnabled
+	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
 	fconf.DataDir = Context.getDataDir()
 	fconf.DNSBlocklist = config.Filters
 	fconf.DNSAllowlist = config.WhitelistFilters
+	fconf.UserRules = config.UserRules
 	fconf.Proxylist = config.ProxyFilters
 	fconf.HTTPClient = Context.client
-	Context.filters.Init(fconf)
+	fconf.ConfigModified = onConfigModified
+	fconf.HTTPRegister = httpRegister
+	Context.filters = filters.NewModule(fconf)
 
 	config.MITM.CertDir = Context.getDataDir()
 	config.MITM.ConfigModified = onConfigModified

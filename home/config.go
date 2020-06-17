@@ -249,7 +249,7 @@ func parseConfig() error {
 		return err
 	}
 
-	if !checkFiltersUpdateIntervalHours(config.DNS.FiltersUpdateIntervalHours) {
+	if !filters.CheckFiltersUpdateIntervalHours(config.DNS.FiltersUpdateIntervalHours) {
 		config.DNS.FiltersUpdateIntervalHours = 24
 	}
 
@@ -309,17 +309,16 @@ func (c *configuration) write() error {
 		config.DNS.DnsfilterConf = c
 	}
 
-	fconf := filters.Conf{}
-	Context.filters.WriteDiskConfig(filters.DNSBlocklist, &fconf)
-	config.Filters = fconf.List
-
-	fconf = filters.Conf{}
-	Context.filters.WriteDiskConfig(filters.DNSAllowlist, &fconf)
-	config.WhitelistFilters = fconf.List
-
-	fconf = filters.Conf{}
-	Context.filters.WriteDiskConfig(filters.Proxylist, &fconf)
-	config.ProxyFilters = fconf.List
+	if Context.filters != nil {
+		fconf := filters.ModuleConf{}
+		Context.filters.WriteDiskConfig(&fconf)
+		config.DNS.FilteringEnabled = fconf.Enabled
+		config.DNS.FiltersUpdateIntervalHours = fconf.UpdateIntervalHours
+		config.Filters = fconf.DNSBlocklist
+		config.WhitelistFilters = fconf.DNSAllowlist
+		config.ProxyFilters = fconf.Proxylist
+		config.UserRules = fconf.UserRules
+	}
 
 	if Context.dnsServer != nil {
 		c := dnsforward.FilteringConfig{}

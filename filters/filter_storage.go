@@ -106,8 +106,8 @@ func (fs *filterStg) SetObserver(handler EventHandler) {
 	fs.observer = handler
 }
 
-// notify all users about the event
-func (fs *filterStg) notifyUsers(flags uint) {
+// NotifyObserver - notify users about the event
+func (fs *filterStg) NotifyObserver(flags uint) {
 	fs.observer(flags)
 }
 

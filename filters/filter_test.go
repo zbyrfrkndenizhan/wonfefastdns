@@ -54,15 +54,15 @@ func prepareTestDir() string {
 	return dir
 }
 
-var updateStatus = 0
+var updateStatus atomic.Uint32
 
 func onFiltersUpdate(flags uint) {
 	switch flags {
 	case EventBeforeUpdate:
-		updateStatus |= 1
+		updateStatus.Store(updateStatus.Load() | 1)
 
 	case EventAfterUpdate:
-		updateStatus |= 2
+		updateStatus.Store(updateStatus.Load() | 2)
 	}
 }
 
@@ -143,7 +143,7 @@ func TestFilters(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	}
-	assert.Equal(t, 1|2, updateStatus)
+	assert.Equal(t, uint32(1|2), updateStatus.Load())
 
 	// delete
 	removed := fs.Delete(newURL)

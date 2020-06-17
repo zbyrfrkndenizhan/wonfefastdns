@@ -9,7 +9,7 @@ import (
 type Filtering struct {
 	dnsBlocklist Filters // DNS blocklist filters
 	dnsAllowlist Filters // DNS allowlist filters
-	Proxylist Filters // MITM Proxy filtering module
+	Proxylist    Filters // MITM Proxy filtering module
 
 	conf ModuleConf
 }

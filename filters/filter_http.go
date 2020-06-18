@@ -17,7 +17,7 @@ import (
 )
 
 // Print to log and set HTTP error message
-func httpError2(r *http.Request, w http.ResponseWriter, code int, format string, args ...interface{}) {
+func httpError(r *http.Request, w http.ResponseWriter, code int, format string, args ...interface{}) {
 	text := fmt.Sprintf(format, args...)
 	log.Info("Filters: %s %s: %s", r.Method, r.URL, text)
 	http.Error(w, text, code)
@@ -71,13 +71,13 @@ func (f *Filtering) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
 
 	filterN := f.getFilterModule(req.Type)
 	if filterN == nil {
-		httpError2(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (f *Filtering) handleFilterAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	err = filterN.Add(filt)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "add filter: %s", err)
+		httpError(r, w, http.StatusBadRequest, "add filter: %s", err)
 		return
 	}
 
@@ -105,19 +105,19 @@ func (f *Filtering) handleFilterRemove(w http.ResponseWriter, r *http.Request) {
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
 
 	filterN := f.getFilterModule(req.Type)
 	if filterN == nil {
-		httpError2(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
 	removed := filterN.Delete(req.URL)
 	if removed == nil {
-		httpError2(r, w, http.StatusInternalServerError, "no filter with such URL")
+		httpError(r, w, http.StatusInternalServerError, "no filter with such URL")
 		return
 	}
 
@@ -147,19 +147,19 @@ func (f *Filtering) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
 
 	filterN := f.getFilterModule(req.Type)
 	if filterN == nil {
-		httpError2(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
 	st, _, err := filterN.Modify(req.URL, req.Data.Enabled, req.Data.Name, req.Data.URL)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "%s", err)
+		httpError(r, w, http.StatusBadRequest, "%s", err)
 		return
 	}
 
@@ -177,7 +177,7 @@ func (f *Filtering) handleFilterModify(w http.ResponseWriter, r *http.Request) {
 func (f *Filtering) handleFilteringSetRules(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "Failed to read request body: %s", err)
+		httpError(r, w, http.StatusBadRequest, "Failed to read request body: %s", err)
 		return
 	}
 
@@ -193,13 +193,13 @@ func (f *Filtering) handleFilteringRefresh(w http.ResponseWriter, r *http.Reques
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
 
 	filterN := f.getFilterModule(req.Type)
 	if filterN == nil {
-		httpError2(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
+		httpError(r, w, http.StatusBadRequest, "invalid type: %s", req.Type)
 		return
 	}
 
@@ -268,7 +268,7 @@ func (f *Filtering) handleFilteringStatus(w http.ResponseWriter, r *http.Request
 
 	jsonVal, err := json.Marshal(resp)
 	if err != nil {
-		httpError2(r, w, http.StatusInternalServerError, "json encode: %s", err)
+		httpError(r, w, http.StatusInternalServerError, "json encode: %s", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -284,11 +284,11 @@ func (f *Filtering) handleFilteringConfig(w http.ResponseWriter, r *http.Request
 	req := reqJSON{}
 	_, err := jsonutil.DecodeObject(&req, r.Body)
 	if err != nil {
-		httpError2(r, w, http.StatusBadRequest, "json.Decode: %s", err)
+		httpError(r, w, http.StatusBadRequest, "json.Decode: %s", err)
 		return
 	}
 	if !CheckFiltersUpdateIntervalHours(req.Interval) {
-		httpError2(r, w, http.StatusBadRequest, "Unsupported interval")
+		httpError(r, w, http.StatusBadRequest, "Unsupported interval")
 		return
 	}
 

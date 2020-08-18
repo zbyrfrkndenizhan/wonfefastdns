@@ -9,6 +9,8 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dhcpd"
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
+	"github.com/AdguardTeam/AdGuardHome/filters"
+	"github.com/AdguardTeam/AdGuardHome/mitmproxy"
 	"github.com/AdguardTeam/AdGuardHome/querylog"
 	"github.com/AdguardTeam/AdGuardHome/stats"
 	"github.com/AdguardTeam/golibs/file"
@@ -17,8 +19,7 @@ import (
 )
 
 const (
-	dataDir   = "data"    // data storage
-	filterDir = "filters" // cache location for downloaded filters, it's under DataDir
+	dataDir = "data" // data storage
 )
 
 // logSettings
@@ -54,9 +55,13 @@ type configuration struct {
 	DNS dnsConfig         `yaml:"dns"`
 	TLS tlsConfigSettings `yaml:"tls"`
 
-	Filters          []filter `yaml:"filters"`
-	WhitelistFilters []filter `yaml:"whitelist_filters"`
-	UserRules        []string `yaml:"user_rules"`
+	MITM mitmproxy.Config `yaml:"mitmproxy"`
+
+	Filters          []filters.Filter `yaml:"filters"`
+	WhitelistFilters []filters.Filter `yaml:"whitelist_filters"`
+	UserRules        []string         `yaml:"user_rules"`
+
+	ProxyFilters []filters.Filter `yaml:"proxy_filters"`
 
 	DHCP dhcpd.ServerConfig `yaml:"dhcp"`
 
@@ -155,7 +160,43 @@ func initConfig() {
 	config.DNS.DnsfilterConf.SafeSearchCacheSize = 1 * 1024 * 1024
 	config.DNS.DnsfilterConf.ParentalCacheSize = 1 * 1024 * 1024
 	config.DNS.DnsfilterConf.CacheTime = 30
-	config.Filters = defaultFilters()
+	config.Filters = defaultDNSBlocklistFilters()
+
+	config.ProxyFilters = defaultContentFilters()
+}
+
+func defaultDNSBlocklistFilters() []filters.Filter {
+	return []filters.Filter{
+		{
+			ID:      1,
+			Enabled: true,
+			URL:     "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt",
+			Name:    "AdGuard Simplified Domain Names filter",
+		},
+		{
+			ID:      2,
+			Enabled: false,
+			URL:     "https://adaway.org/hosts.txt",
+			Name:    "AdAway",
+		},
+		{
+			ID:      3,
+			Enabled: false,
+			URL:     "https://www.malwaredomainlist.com/hostslist/hosts.txt",
+			Name:    "MalwareDomainList.com Hosts List",
+		},
+	}
+}
+
+func defaultContentFilters() []filters.Filter {
+	return []filters.Filter{
+		{
+			ID:      1,
+			Enabled: true,
+			URL:     "https://filters.adtidy.org/extension/chromium/filters/2.txt",
+			Name:    "AdGuard Base filter",
+		},
+	}
 }
 
 // getConfigFilename returns path to the current config file
@@ -203,7 +244,7 @@ func parseConfig() error {
 		return err
 	}
 
-	if !checkFiltersUpdateIntervalHours(config.DNS.FiltersUpdateIntervalHours) {
+	if !filters.CheckFiltersUpdateIntervalHours(config.DNS.FiltersUpdateIntervalHours) {
 		config.DNS.FiltersUpdateIntervalHours = 24
 	}
 
@@ -263,6 +304,17 @@ func (c *configuration) write() error {
 		config.DNS.DnsfilterConf = c
 	}
 
+	if Context.filters != nil {
+		fconf := filters.ModuleConf{}
+		Context.filters.WriteDiskConfig(&fconf)
+		config.DNS.FilteringEnabled = fconf.Enabled
+		config.DNS.FiltersUpdateIntervalHours = fconf.UpdateIntervalHours
+		config.Filters = fconf.DNSBlocklist
+		config.WhitelistFilters = fconf.DNSAllowlist
+		config.ProxyFilters = fconf.Proxylist
+		config.UserRules = fconf.UserRules
+	}
+
 	if Context.dnsServer != nil {
 		c := dnsforward.FilteringConfig{}
 		Context.dnsServer.WriteDiskConfig(&c)
@@ -273,6 +325,12 @@ func (c *configuration) write() error {
 		c := dhcpd.ServerConfig{}
 		Context.dhcpServer.WriteDiskConfig(&c)
 		config.DHCP = c
+	}
+
+	if Context.mitmProxy != nil {
+		c := mitmproxy.Config{}
+		Context.mitmProxy.WriteDiskConfig(&c)
+		config.MITM = c
 	}
 
 	configFile := config.getConfigFilename()

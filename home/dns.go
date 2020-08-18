@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"strings"
 
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/AdguardTeam/AdGuardHome/querylog"
 	"github.com/AdguardTeam/AdGuardHome/stats"
 	"github.com/AdguardTeam/AdGuardHome/util"
@@ -77,8 +79,6 @@ func initDNSServer() error {
 
 	Context.rdns = InitRDNS(Context.dnsServer, &Context.clients)
 	Context.whois = initWhois(&Context.clients)
-
-	Context.filters.Init()
 	return nil
 }
 
@@ -277,6 +277,8 @@ func startDNSServer() error {
 
 	Context.dnsFilter.Start()
 	Context.filters.Start()
+	Context.filters.GetList(filters.DNSBlocklist).SetObserver(onFiltersChanged)
+	Context.filters.GetList(filters.DNSAllowlist).SetObserver(onFiltersChanged)
 	Context.stats.Start()
 	Context.queryLog.Start()
 
@@ -344,4 +346,59 @@ func closeDNSServer() {
 	Context.filters.Close()
 
 	log.Debug("Closed all DNS modules")
+}
+
+func onFiltersChanged(flags uint) {
+	switch flags {
+	case filters.EventBeforeUpdate:
+		//
+
+	case filters.EventAfterUpdate:
+		enableFilters(true)
+	}
+}
+
+// Activate new DNS filters
+// async: do it asynchronously (the function returns immediately)
+func enableFilters(async bool) {
+	var blockFilters []dnsfilter.Filter
+	var allowFilters []dnsfilter.Filter
+	if config.DNS.FilteringEnabled {
+		// convert array of filters
+
+		// add user filter
+		userFilter := dnsfilter.Filter{
+			ID:   0,
+			Data: []byte(strings.Join(config.UserRules, "\n")),
+		}
+		blockFilters = append(blockFilters, userFilter)
+
+		// add blocklist filters
+		list := Context.filters.GetList(filters.DNSBlocklist).List(0)
+		for _, f := range list {
+			if !f.Enabled || f.RuleCount == 0 {
+				continue
+			}
+			f := dnsfilter.Filter{
+				ID:       int64(f.ID),
+				FilePath: f.Path,
+			}
+			blockFilters = append(blockFilters, f)
+		}
+
+		// add allowlist filters
+		list = Context.filters.GetList(filters.DNSAllowlist).List(0)
+		for _, f := range list {
+			if !f.Enabled || f.RuleCount == 0 {
+				continue
+			}
+			f := dnsfilter.Filter{
+				ID:       int64(f.ID),
+				FilePath: f.Path,
+			}
+			allowFilters = append(allowFilters, f)
+		}
+	}
+
+	_ = Context.dnsFilter.SetFilters(blockFilters, allowFilters, async)
 }

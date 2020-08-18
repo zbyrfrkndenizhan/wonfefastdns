@@ -12,6 +12,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
 	"github.com/AdguardTeam/golibs/log"
 	"github.com/NYTimes/gziphandler"
+	"github.com/miekg/dns"
 )
 
 // ----------------
@@ -87,6 +88,48 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
+type checkHostResp struct {
+	Reason   string `json:"reason"`
+	FilterID int64  `json:"filter_id"`
+	Rule     string `json:"rule"`
+
+	// for FilteredBlockedService:
+	SvcName string `json:"service_name"`
+
+	// for ReasonRewrite:
+	CanonName string   `json:"cname"`    // CNAME value
+	IPList    []net.IP `json:"ip_addrs"` // list of IP addresses
+}
+
+func handleCheckHost(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	host := q.Get("name")
+
+	setts := Context.dnsFilter.GetConfig()
+	setts.FilteringEnabled = true
+	Context.dnsFilter.ApplyBlockedServices(&setts, nil, true)
+	result, err := Context.dnsFilter.CheckHost(host, dns.TypeA, &setts)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "couldn't apply filtering: %s: %s", host, err)
+		return
+	}
+
+	resp := checkHostResp{}
+	resp.Reason = result.Reason.String()
+	resp.FilterID = result.FilterID
+	resp.Rule = result.Rule
+	resp.SvcName = result.ServiceName
+	resp.CanonName = result.CanonName
+	resp.IPList = result.IPList
+	js, err := json.Marshal(resp)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "json encode: %s", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(js)
+}
+
 // ------------------------
 // registration of handlers
 // ------------------------
@@ -96,6 +139,7 @@ func registerControlHandlers() {
 	httpRegister(http.MethodGet, "/control/i18n/current_language", handleI18nCurrentLanguage)
 	http.HandleFunc("/control/version.json", postInstall(optionalAuth(handleGetVersionJSON)))
 	httpRegister(http.MethodPost, "/control/update", handleUpdate)
+	httpRegister("GET", "/control/filtering/check_host", handleCheckHost)
 
 	httpRegister("GET", "/control/profile", handleGetProfile)
 	RegisterAuthHandlers()

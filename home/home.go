@@ -20,6 +20,7 @@ import (
 
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/AdguardTeam/AdGuardHome/filters"
 	"github.com/AdguardTeam/AdGuardHome/update"
 	"github.com/AdguardTeam/AdGuardHome/util"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dhcpd"
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/AdGuardHome/dnsforward"
+	"github.com/AdguardTeam/AdGuardHome/mitmproxy"
 	"github.com/AdguardTeam/AdGuardHome/querylog"
 	"github.com/AdguardTeam/AdGuardHome/stats"
 	"github.com/AdguardTeam/golibs/log"
@@ -62,11 +64,13 @@ type homeContext struct {
 	dnsFilter  *dnsfilter.Dnsfilter // DNS filtering module
 	dhcpServer *dhcpd.Server        // DHCP module
 	auth       *Auth                // HTTP authentication module
-	filters    Filtering            // DNS filtering module
+	filters    *filters.Filtering   // DNS filtering module
 	web        *Web                 // Web (HTTP, HTTPS) module
 	tls        *TLSMod              // TLS module
 	autoHosts  util.AutoHosts       // IP-hostname pairs taken from system configuration (e.g. /etc/hosts) files
 	updater    *update.Updater
+
+	mitmProxy *mitmproxy.MITMProxy // MITM proxy module
 
 	// Runtime properties
 	// --
@@ -279,6 +283,28 @@ func run(args options) {
 		log.Fatalf("Cannot create DNS data dir at %s: %s", Context.getDataDir(), err)
 	}
 
+	fconf := filters.ModuleConf{}
+	fconf.Enabled = config.DNS.FilteringEnabled
+	fconf.UpdateIntervalHours = config.DNS.FiltersUpdateIntervalHours
+	fconf.DataDir = Context.getDataDir()
+	fconf.DNSBlocklist = config.Filters
+	fconf.DNSAllowlist = config.WhitelistFilters
+	fconf.UserRules = config.UserRules
+	fconf.Proxylist = config.ProxyFilters
+	fconf.HTTPClient = Context.client
+	fconf.ConfigModified = onConfigModified
+	fconf.HTTPRegister = httpRegister
+	Context.filters = filters.NewModule(fconf)
+
+	config.MITM.CertDir = Context.getDataDir()
+	config.MITM.ConfigModified = onConfigModified
+	config.MITM.HTTPRegister = httpRegister
+	config.MITM.Filter = Context.filters.GetList(filters.Proxylist)
+	Context.mitmProxy = mitmproxy.New(config.MITM)
+	if Context.mitmProxy == nil {
+		os.Exit(1)
+	}
+
 	sessFilename := filepath.Join(Context.getDataDir(), "sessions.db")
 	GLMode = args.glinetMode
 	Context.auth = InitAuth(sessFilename, config.Users, config.WebSessionTTLHours*60*60)
@@ -316,6 +342,13 @@ func run(args options) {
 				log.Fatal(err)
 			}
 		}()
+
+		if Context.mitmProxy != nil {
+			err = Context.mitmProxy.Start()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 
 		err = startDHCPServer()
 		if err != nil {
@@ -501,10 +534,16 @@ func cleanup() {
 		Context.auth = nil
 	}
 
+	if Context.mitmProxy != nil {
+		Context.mitmProxy.Close()
+		Context.mitmProxy = nil
+	}
+
 	err := stopDNSServer()
 	if err != nil {
 		log.Error("Couldn't stop DNS server: %s", err)
 	}
+
 	err = stopDHCPServer()
 	if err != nil {
 		log.Error("Couldn't stop DHCP server: %s", err)

@@ -52,15 +52,21 @@ Contents:
 	* API: Get query log
 	* API: Set querylog parameters
 	* API: Get querylog parameters
-* Filtering
+* DNS Filtering
 	* Filters update mechanism
 	* API: Get filtering parameters
 	* API: Set filtering parameters
 	* API: Refresh filters
 	* API: Add Filter
-	* API: Set URL parameters
-	* API: Delete URL
+	* API: Set Filter parameters
+	* API: Delete Filter
 	* API: Domain Check
+* HTTP Proxy
+	* API: Get Proxy settings
+	* API: Set Proxy settings
+	* API: Get Proxy filtering parameters
+	* API: Add Proxy Filter
+	* API: Delete Proxy Filter
 * Log-in page
 	* API: Log in
 	* API: Log out
@@ -1477,7 +1483,7 @@ Response:
 	}
 
 
-## Filtering
+## DNS Filtering
 
 ![](doc/agh-filtering.png)
 
@@ -1548,7 +1554,19 @@ Response:
 			}
 			...
 		],
-		"user_rules":["...", ...]
+		"user_rules":["...", ...],
+
+		"proxy_filtering_enabled": true | false
+		"proxy_filters":[
+			{
+			"enabled":true,
+			"url":"https://...",
+			"name":"...",
+			"rules_count":1234,
+			"last_updated":"2019-09-04T18:29:30+00:00",
+			}
+			...
+		],
 	}
 
 For both arrays `filters` and `whitelist_filters` there are unique values: id, url.
@@ -1563,6 +1581,7 @@ Request:
 
 	{
 		"enabled": true | false
+		"proxy_filtering_enabled": true | false
 		"interval": 0 | 1 | 12 | 1*24 || 3*24 || 7*24
 	}
 
@@ -1578,7 +1597,7 @@ Request:
 	POST /control/filtering/refresh
 
 	{
-		"whitelist": true
+		"type": blocklist | whitelist | proxylist
 	}
 
 Response:
@@ -1599,7 +1618,7 @@ Request:
 	{
 		"name": "..."
 		"url": "..." // URL or an absolute file path
-		"whitelist": true
+		"type": blocklist | whitelist | proxylist
 	}
 
 Response:
@@ -1607,7 +1626,7 @@ Response:
 	200 OK
 
 
-### API: Set URL parameters
+### API: Set Filter parameters
 
 Request:
 
@@ -1615,11 +1634,11 @@ Request:
 
 	{
 	"url": "..."
-	"whitelist": true
+	"type": blocklist | whitelist | proxylist
 	"data": {
 		"name": "..."
 		"url": "..."
-		"enabled": true | false
+		"enabled": true
 	}
 	}
 
@@ -1628,7 +1647,7 @@ Response:
 	200 OK
 
 
-### API: Delete URL
+### API: Delete Filter
 
 Request:
 
@@ -1636,7 +1655,7 @@ Request:
 
 	{
 	"url": "..."
-	"whitelist": true
+	"type": blocklist | whitelist | proxylist
 	}
 
 Response:
@@ -1666,6 +1685,60 @@ Response:
 	"cname": "...",
 	"ip_addrs": ["1.2.3.4", ...],
 	}
+
+
+## HTTP Proxy
+
+	Browser <-(HTTP)-> AGH Proxy <-(HTTP)-> Internet Server
+
+HTTPS MITM:
+
+	. Browser  --(CONNECT...)->          AGH Proxy  --(handshake)->     Internet Server
+	. Browser  <-(handshake,cert/AGH)--  AGH Proxy  <-(cert/issuer)--   Internet Server
+	. Browser  <-(TLS/session2)->        AGH Proxy  <-(TLS/session1)->  Internet Server
+
+
+### API: Get Proxy settings
+
+Request:
+
+	GET /control/proxy_info
+
+Response:
+
+	200 OK
+
+	{
+		"enabled": true|false,
+		"listen_address": "ip",
+		"listen_port": 12345,
+
+		"auth_username": "",
+		"auth_password": ""
+	}
+
+
+### API: Set Proxy settings
+
+Request:
+
+	POST /control/proxy_config
+
+	{
+		"enabled": true|false,
+		"listen_address": "ip",
+		"listen_port": 12345,
+
+		"auth_username": "",
+		"auth_password": "",
+
+		"cert_data":"...", // user-specified certificate.  "": generate new
+		"pkey_data":"...",
+	}
+
+Response:
+
+	200 OK
 
 
 ## Log-in page

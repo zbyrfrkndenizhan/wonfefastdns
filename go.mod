@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/AdguardTeam/dnsproxy v0.30.1
 	github.com/AdguardTeam/golibs v0.4.2
+	github.com/AdguardTeam/gomitmproxy v0.2.0
 	github.com/AdguardTeam/urlfilter v0.11.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/fsnotify/fsnotify v1.4.7
@@ -17,6 +18,7 @@ require (
 	github.com/sparrc/go-ping v0.0.0-20190613174326-4e5b6552494c
 	github.com/stretchr/testify v1.5.1
 	go.etcd.io/bbolt v1.3.4
+	go.uber.org/atomic v1.6.0
 	golang.org/x/crypto v0.0.0-20200403201458-baeed622b8d8
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d

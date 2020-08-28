@@ -19,6 +19,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/dnsfilter"
 	"github.com/AdguardTeam/dnsproxy/proxy"
 	"github.com/AdguardTeam/dnsproxy/upstream"
+	"github.com/AdguardTeam/golibs/log"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 )
@@ -1058,5 +1059,23 @@ func TestPTRResponse(t *testing.T) {
 	ptr := resp.Answer[0].(*dns.PTR)
 	assert.Equal(t, "localhost.", ptr.Ptr)
 
+	s.Close()
+}
+
+func TestInvalidDomain(t *testing.T) {
+	log.SetLevel(log.DEBUG)
+	s := NewServer(DNSCreateParams{})
+	s.conf.TCPListenAddr = &net.TCPAddr{Port: 0}
+	s.conf.UDPListenAddr = &net.UDPAddr{Port: 0}
+	s.conf.UpstreamDNS = []string{"127.0.0.1:53"}
+	err := s.Prepare(nil)
+	assert.True(t, err == nil)
+	assert.Nil(t, s.Start())
+	addr := s.dnsProxy.Addr(proxy.ProtoUDP)
+
+	req := createTestMessage("g\\\\oogle.com.")
+	resp, err := dns.Exchange(req, addr.String())
+	assert.Nil(t, err)
+	assert.Equal(t, dns.RcodeNameError, resp.Rcode)
 	s.Close()
 }

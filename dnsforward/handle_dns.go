@@ -10,6 +10,7 @@ import (
 	"github.com/AdguardTeam/AdGuardHome/util"
 	"github.com/AdguardTeam/dnsproxy/proxy"
 	"github.com/AdguardTeam/golibs/log"
+	"github.com/AdguardTeam/urlfilter/filterutil"
 	"github.com/miekg/dns"
 )
 
@@ -89,6 +90,12 @@ func processInitial(ctx *dnsContext) int {
 		d.Req.Question[0].Name == "use-application-dns.net." {
 		d.Res = s.genNXDomain(d.Req)
 		return resultFinish
+	}
+
+	if !filterutil.IsDomainName(d.Req.Question[0].Name) {
+		log.Debug("Invalid domain name in question: %s  client: %s",
+			d.Req.Question[0].Name, d.Addr.String())
+		d.Res = s.genNXDomain(d.Req)
 	}
 
 	return resultDone

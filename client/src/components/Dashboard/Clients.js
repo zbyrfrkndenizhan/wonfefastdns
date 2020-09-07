@@ -8,10 +8,13 @@ import classNames from 'classnames';
 import Card from '../ui/Card';
 import Cell from '../ui/Cell';
 
-import { getPercent, getIpMatchListStatus, sortIp } from '../../helpers/helpers';
-import { BLOCK_ACTIONS, IP_MATCH_LIST_STATUS, STATUS_COLORS } from '../../helpers/constants';
+import { getPercent, sortIp } from '../../helpers/helpers';
+import {
+    BLOCK_ACTIONS, DISALLOWED_STATE, STATUS_COLORS,
+} from '../../helpers/constants';
 import { toggleClientBlock } from '../../actions/access';
 import { renderFormattedClientCell } from '../../helpers/renderFormattedClientCell';
+import { getStats } from '../../actions/stats';
 
 const getClientsPercentColor = (percent) => {
     if (percent > 50) {
@@ -33,35 +36,32 @@ const CountCell = (row) => {
     return <Cell value={value} percent={percent} color={percentColor} search={ip} />;
 };
 
-const renderBlockingButton = (ip) => {
+const renderBlockingButton = (ip, disallowed) => {
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const processingSet = useSelector((state) => state.access.processingSet);
-    const disallowed_clients = useSelector(
-        (state) => state.access.disallowed_clients, shallowEqual,
-    );
 
-    const ipMatchListStatus = getIpMatchListStatus(ip, disallowed_clients);
+    const isAllowed = disallowed === DISALLOWED_STATE.ALLOWED_IP;
+    const isNotInAllowedList = disallowed === DISALLOWED_STATE.NOT_IN_ALLOWED_LIST;
+    const disallowingRule = disallowed !== isAllowed && disallowed !== isNotInAllowedList;
 
-    if (ipMatchListStatus === IP_MATCH_LIST_STATUS.CIDR) {
-        return null;
-    }
-
-    const isNotFound = ipMatchListStatus === IP_MATCH_LIST_STATUS.NOT_FOUND;
-    const type = isNotFound ? BLOCK_ACTIONS.BLOCK : BLOCK_ACTIONS.UNBLOCK;
+    const type = isAllowed ? BLOCK_ACTIONS.BLOCK : BLOCK_ACTIONS.UNBLOCK;
     const text = type;
 
     const buttonClass = classNames('button-action button-action--main', {
-        'button-action--unblock': !isNotFound,
+        'button-action--unblock': !isAllowed,
     });
 
     const toggleClientStatus = (type, ip) => {
+        const client = disallowingRule || ip;
+
         const confirmMessage = type === BLOCK_ACTIONS.BLOCK
-            ? `${t('adg_will_drop_dns_queries')} ${t('client_confirm_block', { ip })}`
+            ? `${t('adg_will_drop_dns_queries')} ${t('client_confirm_block', { ip: client })}`
             : t('client_confirm_unblock', { ip });
 
         if (window.confirm(confirmMessage)) {
             dispatch(toggleClientBlock(type, ip));
+            dispatch(getStats());
         }
     };
 
@@ -72,7 +72,8 @@ const renderBlockingButton = (ip) => {
                         type="button"
                         className={buttonClass}
                         onClick={onClick}
-                        disabled={processingSet}
+                        disabled={processingSet || isNotInAllowedList}
+                        title={t(isNotInAllowedList ? 'client_not_in_allowed_clients' : text)}
                 >
                     <Trans>{text}</Trans>
                 </button>
@@ -80,12 +81,12 @@ const renderBlockingButton = (ip) => {
 };
 
 const ClientCell = (row) => {
-    const { value, original: { info } } = row;
+    const { value, original: { info, info: { disallowed } } } = row;
 
     return <>
         <div className="logs__row logs__row--overflow logs__row--column d-flex align-items-center">
             {renderFormattedClientCell(value, info, true)}
-            {renderBlockingButton(value)}
+            {renderBlockingButton(value, disallowed)}
         </div>
     </>;
 };
@@ -96,7 +97,6 @@ const Clients = ({
 }) => {
     const { t } = useTranslation();
     const topClients = useSelector((state) => state.stats.topClients, shallowEqual);
-    const disallowedClients = useSelector((state) => state.access.disallowed_clients, shallowEqual);
 
     return <Card
             title={t('top_clients')}
@@ -138,9 +138,9 @@ const Clients = ({
                         return {};
                     }
 
-                    const { ip } = rowInfo.original;
+                    const { info: { disallowed } } = rowInfo.original;
 
-                    return getIpMatchListStatus(ip, disallowedClients) === IP_MATCH_LIST_STATUS.NOT_FOUND ? {} : { className: 'red' };
+                    return disallowed === DISALLOWED_STATE.ALLOWED_IP ? {} : { className: 'red' };
                 }}
         />
     </Card>;

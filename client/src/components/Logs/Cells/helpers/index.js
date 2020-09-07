@@ -1,16 +1,14 @@
-import { getIpMatchListStatus } from '../../../../helpers/helpers';
-import { BLOCK_ACTIONS, IP_MATCH_LIST_STATUS } from '../../../../helpers/constants';
+import { BLOCK_ACTIONS, DISALLOWED_STATE } from '../../../../helpers/constants';
 
 export const BUTTON_PREFIX = 'btn_';
 
-export const getBlockClientInfo = (client, disallowed_clients) => {
-    const ipMatchListStatus = getIpMatchListStatus(client, disallowed_clients);
+// TODO: block when NOT_IN_ALLOWED_LIST
+export const getBlockClientInfo = (client, disallowed) => {
+    const isAllowed = disallowed === DISALLOWED_STATE.ALLOWED_IP;
+    const type = isAllowed ? BLOCK_ACTIONS.BLOCK : BLOCK_ACTIONS.UNBLOCK;
 
-    const isNotFound = ipMatchListStatus === IP_MATCH_LIST_STATUS.NOT_FOUND;
-    const type = isNotFound ? BLOCK_ACTIONS.BLOCK : BLOCK_ACTIONS.UNBLOCK;
-
-    const confirmMessage = isNotFound ? 'client_confirm_block' : 'client_confirm_unblock';
-    const buttonKey = isNotFound ? 'disallow_this_client' : 'allow_this_client';
+    const confirmMessage = isAllowed ? 'client_confirm_block' : 'client_confirm_unblock';
+    const buttonKey = isAllowed ? 'disallow_this_client' : 'allow_this_client';
     return {
         confirmMessage,
         buttonKey,

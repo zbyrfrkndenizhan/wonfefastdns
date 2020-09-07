@@ -11,12 +11,13 @@ import IconTooltip from './IconTooltip';
 import { renderFormattedClientCell } from '../../../helpers/renderFormattedClientCell';
 import { toggleClientBlock } from '../../../actions/access';
 import { getBlockClientInfo } from './helpers';
+import { getStats } from '../../../actions/stats';
 
 const ClientCell = ({
     client,
     domain,
     info,
-    info: { name, whois_info },
+    info: { name, whois_info, disallowed },
     reason,
 }) => {
     const { t } = useTranslation();
@@ -25,11 +26,6 @@ const ClientCell = ({
     const processingRules = useSelector((state) => state.filtering.processingRules);
     const isDetailed = useSelector((state) => state.queryLogs.isDetailed);
     const [isOptionsOpened, setOptionsOpened] = useState(false);
-
-    const disallowed_clients = useSelector(
-        (state) => state.access.disallowed_clients,
-        shallowEqual,
-    );
 
     const autoClient = autoClients.find((autoClient) => autoClient.name === client);
     const source = autoClient?.source;
@@ -67,7 +63,7 @@ const ClientCell = ({
             confirmMessage,
             buttonKey: blockingClientKey,
             type,
-        } = getBlockClientInfo(client, disallowed_clients);
+        } = getBlockClientInfo(client, disallowed);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
         const clientNameBlockingFor = getBlockingClientName(clients, client);
@@ -84,7 +80,10 @@ const ClientCell = ({
             },
         };
 
-        const onClick = () => dispatch(toggleBlocking(buttonType, domain));
+        const onClick = () => {
+            dispatch(toggleBlocking(buttonType, domain));
+            dispatch(getStats());
+        };
 
         const getOptions = (optionToActionMap) => {
             const options = Object.entries(optionToActionMap);

@@ -465,12 +465,6 @@ export const DNS_REQUEST_OPTIONS = {
     LOAD_BALANCING: '',
 };
 
-export const IP_MATCH_LIST_STATUS = {
-    NOT_FOUND: 'NOT_FOUND', // not found in the list
-    EXACT: 'EXACT', // found exact match (including the match of short and long forms)
-    CIDR: 'CIDR', // the ip is in the specified CIDR range
-};
-
 export const DHCP_FORM_NAMES = {
     DHCPv4: 'dhcpv4',
     DHCPv6: 'dhcpv6',
@@ -544,4 +538,9 @@ export const TOAST_TIMEOUTS = {
     [TOAST_TYPES.SUCCESS]: 5000,
     [TOAST_TYPES.ERROR]: 30000,
     [TOAST_TYPES.NOTICE]: 30000,
+};
+
+export const DISALLOWED_STATE = {
+    ALLOWED_IP: '',
+    NOT_IN_ALLOWED_LIST: 'not-in-allowed-list',
 };

@@ -49,7 +49,7 @@ export const toggleClientBlockRequest = createAction('TOGGLE_CLIENT_BLOCK_REQUES
 export const toggleClientBlockFailure = createAction('TOGGLE_CLIENT_BLOCK_FAILURE');
 export const toggleClientBlockSuccess = createAction('TOGGLE_CLIENT_BLOCK_SUCCESS');
 
-export const toggleClientBlock = (type, ip) => async (dispatch) => {
+export const toggleClientBlock = (type, ip, disallowingRule) => async (dispatch) => {
     dispatch(toggleClientBlockRequest());
     try {
         const {
@@ -57,9 +57,12 @@ export const toggleClientBlock = (type, ip) => async (dispatch) => {
         } = await apiClient.getAccessList();
         let updatedDisallowedClients = disallowed_clients || [];
 
-        if (type === BLOCK_ACTIONS.UNBLOCK && updatedDisallowedClients.includes(ip)) {
-            updatedDisallowedClients = updatedDisallowedClients.filter((client) => client !== ip);
-        } else if (type === BLOCK_ACTIONS.BLOCK && !updatedDisallowedClients.includes(ip)) {
+        const isIpInDisallowedClients = updatedDisallowedClients.includes(ip);
+
+        if (type === BLOCK_ACTIONS.UNBLOCK && isIpInDisallowedClients) {
+            updatedDisallowedClients = updatedDisallowedClients
+                .filter((client) => client !== disallowingRule);
+        } else if (type === BLOCK_ACTIONS.BLOCK && !isIpInDisallowedClients) {
             updatedDisallowedClients.push(ip);
         }
 

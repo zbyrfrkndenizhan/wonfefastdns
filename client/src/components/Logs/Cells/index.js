@@ -48,11 +48,6 @@ const Row = memo(({
     const whitelistFilters = useSelector((state) => state.filtering.whitelistFilters, shallowEqual);
     const autoClients = useSelector((state) => state.dashboard.autoClients, shallowEqual);
 
-    const disallowed_clients = useSelector(
-        (state) => state.access.disallowed_clients,
-        shallowEqual,
-    );
-
     const clients = useSelector((state) => state.dashboard.clients);
 
     const onClick = () => {
@@ -63,6 +58,7 @@ const Row = memo(({
             domain,
             elapsedMs,
             info,
+            info: { disallowed },
             reason,
             response,
             time,
@@ -112,7 +108,7 @@ const Row = memo(({
             confirmMessage,
             buttonKey: blockingClientKey,
             type: blockType,
-        } = getBlockClientInfo(client, disallowed_clients);
+        } = getBlockClientInfo(client, disallowed);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
         const clientNameBlockingFor = getBlockingClientName(clients, client);

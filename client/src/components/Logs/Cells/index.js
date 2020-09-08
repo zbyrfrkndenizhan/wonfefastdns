@@ -58,7 +58,7 @@ const Row = memo(({
             domain,
             elapsedMs,
             info,
-            info: { disallowed },
+            info: { disallowed, disallowed_rule },
             reason,
             response,
             time,
@@ -118,7 +118,7 @@ const Row = memo(({
 
         const onBlockingClientClick = () => {
             if (window.confirm(confirmMessage)) {
-                dispatch(toggleClientBlock(client, disallowed));
+                dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
             }
         };
 

@@ -8,9 +8,9 @@ import classNames from 'classnames';
 import Card from '../ui/Card';
 import Cell from '../ui/Cell';
 
-import { convertDisallowedToEnum, getPercent, sortIp } from '../../helpers/helpers';
+import { getPercent, sortIp } from '../../helpers/helpers';
 import {
-    BLOCK_ACTIONS, DISALLOWED_STATE, STATUS_COLORS,
+    BLOCK_ACTIONS, STATUS_COLORS,
 } from '../../helpers/constants';
 import { toggleClientBlock } from '../../actions/access';
 import { renderFormattedClientCell } from '../../helpers/renderFormattedClientCell';
@@ -36,39 +36,38 @@ const CountCell = (row) => {
     return <Cell value={value} percent={percent} color={percentColor} search={ip} />;
 };
 
-const renderBlockingButton = (ip, disallowed) => {
+const renderBlockingButton = (ip, disallowed, disallowed_rule) => {
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const processingSet = useSelector((state) => state.access.processingSet);
 
-    const disallowedState = convertDisallowedToEnum(disallowed);
-
     const buttonClass = classNames('button-action button-action--main', {
-        'button-action--unblock': !disallowedState.isAllowed,
+        'button-action--unblock': disallowed,
     });
 
-    const toggleClientStatus = async (ip, disallowed) => {
-        const confirmMessage = disallowedState.isAllowed
-            ? `${t('adg_will_drop_dns_queries')} ${t('client_confirm_block', { ip })}`
-            : t('client_confirm_unblock', { ip: disallowed });
+    const toggleClientStatus = async (ip, disallowed, disallowed_rule) => {
+        const confirmMessage = disallowed
+            ? t('client_confirm_unblock', { ip: disallowed_rule })
+            : `${t('adg_will_drop_dns_queries')} ${t('client_confirm_block', { ip })}`;
 
         if (window.confirm(confirmMessage)) {
-            await dispatch(toggleClientBlock(ip, disallowed));
+            await dispatch(toggleClientBlock(ip, disallowed, disallowed_rule));
             await dispatch(getStats());
         }
     };
 
-    const onClick = () => toggleClientStatus(ip, disallowed);
+    const onClick = () => toggleClientStatus(ip, disallowed, disallowed_rule);
 
-    const text = disallowedState.isAllowed ? BLOCK_ACTIONS.BLOCK : BLOCK_ACTIONS.UNBLOCK;
+    const text = disallowed ? BLOCK_ACTIONS.UNBLOCK : BLOCK_ACTIONS.BLOCK;
 
+    const isNotInAllowedList = disallowed && disallowed_rule === '';
     return <div className="table__action pl-4">
         <button
                 type="button"
                 className={buttonClass}
-                onClick={disallowedState.isNotInAllowedList ? undefined : onClick}
-                disabled={disallowedState.isNotInAllowedList || processingSet}
-                title={t(disallowedState.isNotInAllowedList ? 'client_not_in_allowed_clients' : text)}
+                onClick={isNotInAllowedList ? undefined : onClick}
+                disabled={isNotInAllowedList || processingSet}
+                title={t(isNotInAllowedList ? 'client_not_in_allowed_clients' : text)}
         >
             <Trans>{text}</Trans>
         </button>
@@ -76,12 +75,12 @@ const renderBlockingButton = (ip, disallowed) => {
 };
 
 const ClientCell = (row) => {
-    const { value, original: { info, info: { disallowed } } } = row;
+    const { value, original: { info, info: { disallowed, disallowed_rule } } } = row;
 
     return <>
         <div className="logs__row logs__row--overflow logs__row--column d-flex align-items-center">
             {renderFormattedClientCell(value, info, true)}
-            {renderBlockingButton(value, disallowed)}
+            {renderBlockingButton(value, disallowed, disallowed_rule)}
         </div>
     </>;
 };
@@ -135,7 +134,7 @@ const Clients = ({
 
                     const { info: { disallowed } } = rowInfo.original;
 
-                    return disallowed === DISALLOWED_STATE.ALLOWED_IP ? {} : { className: 'logs__row--red' };
+                    return disallowed ? { className: 'logs__row--red' } : {};
                 }}
         />
     </Card>;

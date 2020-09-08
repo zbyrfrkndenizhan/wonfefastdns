@@ -1,16 +1,13 @@
 import i18next from 'i18next';
-import { convertDisallowedToEnum } from '../../../../helpers/helpers';
 
 export const BUTTON_PREFIX = 'btn_';
 
-export const getBlockClientInfo = (ip, disallowed) => {
-    const disallowedState = convertDisallowedToEnum(disallowed);
+export const getBlockClientInfo = (ip, disallowed, disallowed_rule) => {
+    const confirmMessage = disallowed
+        ? i18next.t('client_confirm_unblock', { ip: disallowed_rule })
+        : `${i18next.t('adg_will_drop_dns_queries')} ${i18next.t('client_confirm_block', { ip })}`;
 
-    const confirmMessage = disallowedState.isAllowed
-        ? `${i18next.t('adg_will_drop_dns_queries')} ${i18next.t('client_confirm_block', { ip })}`
-        : i18next.t('client_confirm_unblock', { ip: disallowed });
-
-    const buttonKey = i18next.t(disallowedState.isAllowed ? 'disallow_this_client' : 'allow_this_client');
+    const buttonKey = i18next.t(disallowed ? 'allow_this_client' : 'disallow_this_client');
 
     return {
         confirmMessage,

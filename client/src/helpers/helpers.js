@@ -21,7 +21,6 @@ import {
     DEFAULT_TIME_FORMAT,
     DETAILED_DATE_FORMAT_OPTIONS,
     DHCP_VALUES_PLACEHOLDERS,
-    DISALLOWED_STATE,
     FILTERED,
     FILTERED_STATUS,
     STANDARD_DNS_PORT,
@@ -723,22 +722,4 @@ export const getBlockingClientName = (clients, ip) => {
         }
     }
     return ip;
-};
-
-/**
- * @param disallowed {string}
- * @returns {{isAllowed: boolean,
- * isNotInAllowedList: boolean,
- * isInDisallowedList: boolean}}
- */
-export const convertDisallowedToEnum = (disallowed) => {
-    const isAllowed = disallowed === DISALLOWED_STATE.ALLOWED_IP;
-    const isNotInAllowedList = disallowed === DISALLOWED_STATE.NOT_IN_ALLOWED_LIST;
-    const isInDisallowedList = !isAllowed && !isNotInAllowedList;
-
-    return {
-        isAllowed,
-        isInDisallowedList,
-        isNotInAllowedList,
-    };
 };

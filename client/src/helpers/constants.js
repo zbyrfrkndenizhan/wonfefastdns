@@ -539,8 +539,3 @@ export const TOAST_TIMEOUTS = {
     [TOAST_TYPES.ERROR]: 30000,
     [TOAST_TYPES.NOTICE]: 30000,
 };
-
-export const DISALLOWED_STATE = {
-    ALLOWED_IP: '',
-    NOT_IN_ALLOWED_LIST: 'not-in-allowed-list',
-};

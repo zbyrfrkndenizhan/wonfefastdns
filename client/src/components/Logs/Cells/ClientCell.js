@@ -17,7 +17,9 @@ const ClientCell = ({
     client,
     domain,
     info,
-    info: { name, whois_info, disallowed },
+    info: {
+        name, whois_info, disallowed, disallowed_rule,
+    },
     reason,
 }) => {
     const { t } = useTranslation();
@@ -62,7 +64,7 @@ const ClientCell = ({
         const {
             confirmMessage,
             buttonKey: blockingClientKey,
-        } = getBlockClientInfo(client, disallowed);
+        } = getBlockClientInfo(client, disallowed, disallowed_rule);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
         const clientNameBlockingFor = getBlockingClientName(clients, client);
@@ -73,7 +75,7 @@ const ClientCell = ({
             },
             [blockingClientKey]: () => {
                 if (window.confirm(confirmMessage)) {
-                    dispatch(toggleClientBlock(client, disallowed));
+                    dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
                 }
             },
         };
@@ -163,6 +165,8 @@ ClientCell.propTypes = {
                 city: propTypes.string,
                 orgname: propTypes.string,
             }),
+            disallowed: propTypes.bool.isRequired,
+            disallowed_rule: propTypes.string.isRequired,
         }),
     ]),
     reason: propTypes.string.isRequired,

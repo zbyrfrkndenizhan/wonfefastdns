@@ -327,7 +327,7 @@
 }
 
 .logs__row--red {
-    background-color: var(--red);
+    background-color: var(--red) !important;
 }
 
 .logs__row--white {

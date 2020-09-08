@@ -3,8 +3,7 @@ import i18next from 'i18next';
 
 import apiClient from '../api/Api';
 import { addErrorToast, addSuccessToast } from './toasts';
-import { BLOCK_ACTIONS } from '../helpers/constants';
-import { splitByNewLine } from '../helpers/helpers';
+import { convertDisallowedToEnum, splitByNewLine } from '../helpers/helpers';
 
 export const getAccessListRequest = createAction('GET_ACCESS_LIST_REQUEST');
 export const getAccessListFailure = createAction('GET_ACCESS_LIST_FAILURE');
@@ -49,7 +48,9 @@ export const toggleClientBlockRequest = createAction('TOGGLE_CLIENT_BLOCK_REQUES
 export const toggleClientBlockFailure = createAction('TOGGLE_CLIENT_BLOCK_FAILURE');
 export const toggleClientBlockSuccess = createAction('TOGGLE_CLIENT_BLOCK_SUCCESS');
 
-export const toggleClientBlock = (type, ip, disallowingRule) => async (dispatch) => {
+export const toggleClientBlock = (ip, disallowed) => async (dispatch) => {
+    const disallowedState = convertDisallowedToEnum(disallowed);
+
     dispatch(toggleClientBlockRequest());
     try {
         const {
@@ -57,12 +58,10 @@ export const toggleClientBlock = (type, ip, disallowingRule) => async (dispatch)
         } = await apiClient.getAccessList();
         let updatedDisallowedClients = disallowed_clients || [];
 
-        const isIpInDisallowedClients = updatedDisallowedClients.includes(ip);
-
-        if (type === BLOCK_ACTIONS.UNBLOCK && isIpInDisallowedClients) {
+        if (disallowedState.isInDisallowedList) {
             updatedDisallowedClients = updatedDisallowedClients
-                .filter((client) => client !== disallowingRule);
-        } else if (type === BLOCK_ACTIONS.BLOCK && !isIpInDisallowedClients) {
+                .filter((client) => client !== disallowed);
+        } else if (disallowedState.isAllowed) {
             updatedDisallowedClients.push(ip);
         }
 
@@ -75,9 +74,9 @@ export const toggleClientBlock = (type, ip, disallowingRule) => async (dispatch)
         await apiClient.setAccessList(values);
         dispatch(toggleClientBlockSuccess(values));
 
-        if (type === BLOCK_ACTIONS.UNBLOCK) {
-            dispatch(addSuccessToast(i18next.t('client_unblocked', { ip })));
-        } else if (type === BLOCK_ACTIONS.BLOCK) {
+        if (disallowedState.isInDisallowedList) {
+            dispatch(addSuccessToast(i18next.t('client_unblocked', { ip: disallowed })));
+        } else if (disallowedState.isAllowed) {
             dispatch(addSuccessToast(i18next.t('client_blocked', { ip })));
         }
     } catch (error) {

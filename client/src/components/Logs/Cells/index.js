@@ -107,7 +107,6 @@ const Row = memo(({
         const {
             confirmMessage,
             buttonKey: blockingClientKey,
-            type: blockType,
         } = getBlockClientInfo(client, disallowed);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
@@ -118,9 +117,8 @@ const Row = memo(({
         };
 
         const onBlockingClientClick = () => {
-            const message = `${blockType === BLOCK_ACTIONS.BLOCK ? t('adg_will_drop_dns_queries') : ''} ${t(confirmMessage, { ip: client })}`;
-            if (window.confirm(message)) {
-                dispatch(toggleClientBlock(blockType, client));
+            if (window.confirm(confirmMessage)) {
+                dispatch(toggleClientBlock(client, disallowed));
             }
         };
 
@@ -158,12 +156,13 @@ const Row = memo(({
             source_label: source,
             validated_with_dnssec: dnssec_enabled ? Boolean(answer_dnssec) : false,
             original_response: originalResponse?.join('\n'),
-            [BUTTON_PREFIX + buttonType]: <div onClick={onToggleBlock}
+            // todo check styles and find out which button to remove
+            [BUTTON_PREFIX + buttonType]: <button onClick={onToggleBlock}
                                                className={classNames('title--border text-center', {
                                                    'bg--danger': isBlocked,
-                                               })}>{t(buttonType)}</div>,
-            [BUTTON_PREFIX + blockingForClientKey]: <div onClick={onBlockingForClientClick} className='text-center font-weight-bold py-2'>{t(blockingForClientKey)}</div>,
-            [BUTTON_PREFIX + blockingClientKey]: <div onClick={onBlockingClientClick} className='text-center font-weight-bold py-2'>{t(blockingClientKey)}</div>,
+                                               })}>{t(buttonType)}</button>,
+            [BUTTON_PREFIX + blockingForClientKey]: <button onClick={onBlockingForClientClick} className='text-center font-weight-bold py-2'>{t(blockingForClientKey)}</button>,
+            [BUTTON_PREFIX + blockingClientKey]: <button onClick={onBlockingClientClick} className='text-center font-weight-bold py-2'>{t(blockingClientKey)}</button>,
         };
 
         setDetailedDataCurrent(processContent(detailedData));

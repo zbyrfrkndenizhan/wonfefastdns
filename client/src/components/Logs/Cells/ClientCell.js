@@ -62,7 +62,6 @@ const ClientCell = ({
         const {
             confirmMessage,
             buttonKey: blockingClientKey,
-            type,
         } = getBlockClientInfo(client, disallowed);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
@@ -73,9 +72,8 @@ const ClientCell = ({
                 dispatch(toggleBlockingForClient(buttonType, domain, clientNameBlockingFor));
             },
             [blockingClientKey]: () => {
-                const message = `${type === BLOCK_ACTIONS.BLOCK ? t('adg_will_drop_dns_queries') : ''} ${t(confirmMessage, { ip: client })}`;
-                if (window.confirm(message)) {
-                    dispatch(toggleClientBlock(type, client));
+                if (window.confirm(confirmMessage)) {
+                    dispatch(toggleClientBlock(client, disallowed));
                 }
             },
         };

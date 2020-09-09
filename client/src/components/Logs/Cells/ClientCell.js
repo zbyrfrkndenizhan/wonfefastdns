@@ -65,43 +65,50 @@ const ClientCell = ({
         const {
             confirmMessage,
             buttonKey: blockingClientKey,
+            isNotInAllowedList,
         } = getBlockClientInfo(client, disallowed, disallowed_rule);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
         const clientNameBlockingFor = getBlockingClientName(clients, client);
 
-        const BUTTON_OPTIONS_TO_ACTION_MAP = {
-            [blockingForClientKey]: () => {
-                dispatch(toggleBlockingForClient(buttonType, domain, clientNameBlockingFor));
+        const BUTTON_OPTIONS = [
+            {
+                name: blockingForClientKey,
+                onClick: () => {
+                    dispatch(toggleBlockingForClient(buttonType, domain, clientNameBlockingFor));
+                },
             },
-            [blockingClientKey]: async () => {
-                if (window.confirm(confirmMessage)) {
-                    await dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
-                    await dispatch(updateLogs());
-                }
+            {
+                name: blockingClientKey,
+                onClick: async () => {
+                    if (window.confirm(confirmMessage)) {
+                        await dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
+                        await dispatch(updateLogs());
+                    }
+                },
+                disabled: isNotInAllowedList,
             },
-        };
+        ];
 
         const onClick = () => {
             dispatch(toggleBlocking(buttonType, domain));
             dispatch(getStats());
         };
 
-        const getOptions = (optionToActionMap) => {
-            const options = Object.entries(optionToActionMap);
+        const getOptions = (options) => {
             if (options.length === 0) {
                 return null;
             }
-            return <>{options
-                .map(([name, onClick]) => <div
+            return <>{options.map(({ name, onClick, disabled }) => <button
                     key={name}
                     className="button-action--arrow-option px-4 py-2"
                     onClick={onClick}
+                    disabled={disabled}
             >{t(name)}
-            </div>)}</>;
+            </button>)}</>;
         };
 
-        const content = getOptions(BUTTON_OPTIONS_TO_ACTION_MAP);
+        const content = getOptions(BUTTON_OPTIONS);
 
         const buttonClass = classNames('button-action button-action--main', {
             'button-action--unblock': isFiltered,

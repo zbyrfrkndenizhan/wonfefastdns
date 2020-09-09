@@ -8,11 +8,11 @@ export const getBlockClientInfo = (ip, disallowed, disallowed_rule) => {
         : `${i18next.t('adg_will_drop_dns_queries')} ${i18next.t('client_confirm_block', { ip })}`;
 
     const buttonKey = i18next.t(disallowed ? 'allow_this_client' : 'disallow_this_client');
+    const isNotInAllowedList = disallowed && disallowed_rule === '';
 
     return {
         confirmMessage,
         buttonKey,
-        // TODO: remove option when NOT_IN_ALLOWED_LIST
-        // disabled: disallowedState.isNotInAllowedList,
+        isNotInAllowedList,
     };
 };

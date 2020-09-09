@@ -129,16 +129,14 @@ export const normalizeTopStats = (stats) => (
     }))
 );
 
-export const addClientInfo = (data, clients, param) => (
-    data.map((row) => {
-        const clientIp = row[param];
-        const info = clients.find((item) => item[clientIp]) || '';
-        return {
-            ...row,
-            info: info?.[clientIp] ?? '',
-        };
-    })
-);
+export const addClientInfo = (data, clients, param) => data.map((row) => {
+    const clientIp = row[param];
+    const info = clients.find((item) => item[clientIp]) || '';
+    return {
+        ...row,
+        info: info?.[clientIp] ?? '',
+    };
+});
 
 export const normalizeFilters = (filters) => (
     filters ? filters.map((filter) => {

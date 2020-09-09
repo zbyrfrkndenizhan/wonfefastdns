@@ -12,6 +12,7 @@ import { renderFormattedClientCell } from '../../../helpers/renderFormattedClien
 import { toggleClientBlock } from '../../../actions/access';
 import { getBlockClientInfo } from './helpers';
 import { getStats } from '../../../actions/stats';
+import { updateLogs } from '../../../actions/queryLogs';
 
 const ClientCell = ({
     client,
@@ -73,9 +74,10 @@ const ClientCell = ({
             [blockingForClientKey]: () => {
                 dispatch(toggleBlockingForClient(buttonType, domain, clientNameBlockingFor));
             },
-            [blockingClientKey]: () => {
+            [blockingClientKey]: async () => {
                 if (window.confirm(confirmMessage)) {
-                    dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
+                    await dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
+                    await dispatch(updateLogs());
                 }
             },
         };

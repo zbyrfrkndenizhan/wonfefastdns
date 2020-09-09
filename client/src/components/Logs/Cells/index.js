@@ -107,6 +107,7 @@ const Row = memo(({
         const {
             confirmMessage,
             buttonKey: blockingClientKey,
+            isNotInAllowedList,
         } = getBlockClientInfo(client, disallowed);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
@@ -158,11 +159,16 @@ const Row = memo(({
             original_response: originalResponse?.join('\n'),
             // todo check styles and find out which button to remove
             [BUTTON_PREFIX + buttonType]: <button onClick={onToggleBlock}
-                                               className={classNames('title--border text-center', {
+                                               className={classNames('title--border text-center button-action--arrow-option', {
                                                    'bg--danger': isBlocked,
                                                })}>{t(buttonType)}</button>,
-            [BUTTON_PREFIX + blockingForClientKey]: <button onClick={onBlockingForClientClick} className='text-center font-weight-bold py-2'>{t(blockingForClientKey)}</button>,
-            [BUTTON_PREFIX + blockingClientKey]: <button onClick={onBlockingClientClick} className='text-center font-weight-bold py-2'>{t(blockingClientKey)}</button>,
+            [BUTTON_PREFIX + blockingForClientKey]: <button onClick={onBlockingForClientClick}
+                                                            className='text-center font-weight-bold py-2 button-action--arrow-option'>
+                {t(blockingForClientKey)}</button>,
+            [BUTTON_PREFIX + blockingClientKey]: <button onClick={onBlockingClientClick}
+                                                         className='text-center font-weight-bold py-2 button-action--arrow-option'
+                                                         disabled={isNotInAllowedList}>
+                {t(blockingClientKey)}</button>,
         };
 
         setDetailedDataCurrent(processContent(detailedData));

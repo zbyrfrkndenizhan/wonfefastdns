@@ -43,6 +43,7 @@ const getDevServerConfig = (proxyUrl = BASE_URL) => {
         proxy: {
             [proxyUrl]: `http://${devServerHost}:${port}`,
         },
+        open: true,
     };
 };
 

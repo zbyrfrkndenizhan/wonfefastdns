@@ -89,11 +89,20 @@ export const getLogsFailure = createAction('GET_LOGS_FAILURE');
 export const getLogsSuccess = createAction('GET_LOGS_SUCCESS');
 
 export const updateLogs = () => async (dispatch, getState) => {
-    const { logs, oldest, older_than } = getState().queryLogs;
+    try {
+        const { logs, oldest, older_than } = getState().queryLogs;
 
-    const enrichedLogs = await enrichWithClientInfo(logs);
+        const enrichedLogs = await enrichWithClientInfo(logs);
 
-    dispatch(getLogsSuccess({ logs: enrichedLogs, oldest, older_than }));
+        dispatch(getLogsSuccess({
+            logs: enrichedLogs,
+            oldest,
+            older_than,
+        }));
+    } catch (error) {
+        dispatch(addErrorToast({ error }));
+        dispatch(getLogsFailure(error));
+    }
 };
 
 export const getLogs = () => async (dispatch, getState) => {

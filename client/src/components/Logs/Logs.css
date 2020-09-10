@@ -96,7 +96,7 @@
 }
 
 .bg--danger {
-    color: var(--danger);
+    color: var(--danger) !important;
 }
 
 .form-control--search {
@@ -306,7 +306,7 @@
     display: none;
 }
 
-.button-action--arrow-option:not(:disabled):hover {
+.tooltip-custom__container .button-action--arrow-option:not(:disabled):hover {
     cursor: pointer;
     background: var(--gray-f3);
     overflow: hidden;

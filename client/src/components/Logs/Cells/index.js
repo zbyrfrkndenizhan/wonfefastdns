@@ -31,6 +31,7 @@ import ClientCell from './ClientCell';
 import '../Logs.css';
 import { toggleClientBlock } from '../../../actions/access';
 import { getBlockClientInfo, BUTTON_PREFIX } from './helpers';
+import { updateLogs } from '../../../actions/queryLogs';
 
 const Row = memo(({
     style,
@@ -108,7 +109,7 @@ const Row = memo(({
             confirmMessage,
             buttonKey: blockingClientKey,
             isNotInAllowedList,
-        } = getBlockClientInfo(client, disallowed);
+        } = getBlockClientInfo(client, disallowed, disallowed_rule);
 
         const blockingForClientKey = isFiltered ? 'unblock_for_this_client_only' : 'block_for_this_client_only';
         const clientNameBlockingFor = getBlockingClientName(clients, client);
@@ -117,9 +118,11 @@ const Row = memo(({
             dispatch(toggleBlockingForClient(buttonType, domain, clientNameBlockingFor));
         };
 
-        const onBlockingClientClick = () => {
+        const onBlockingClientClick = async () => {
             if (window.confirm(confirmMessage)) {
-                dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
+                await dispatch(toggleClientBlock(client, disallowed, disallowed_rule));
+                await dispatch(updateLogs());
+                setModalOpened(false);
             }
         };
 
@@ -157,17 +160,17 @@ const Row = memo(({
             source_label: source,
             validated_with_dnssec: dnssec_enabled ? Boolean(answer_dnssec) : false,
             original_response: originalResponse?.join('\n'),
-            // todo check styles and find out which button to remove
             [BUTTON_PREFIX + buttonType]: <button onClick={onToggleBlock}
-                                               className={classNames('title--border text-center button-action--arrow-option', {
-                                                   'bg--danger': isBlocked,
-                                               })}>{t(buttonType)}</button>,
+                                                  className={classNames('title--border text-center button-action--arrow-option', {
+                                                      'bg--danger': !isBlocked,
+                                                  })}>{t(buttonType)}</button>,
             [BUTTON_PREFIX + blockingForClientKey]: <button onClick={onBlockingForClientClick}
                                                             className='text-center font-weight-bold py-2 button-action--arrow-option'>
                 {t(blockingForClientKey)}</button>,
             [BUTTON_PREFIX + blockingClientKey]: <button onClick={onBlockingClientClick}
                                                          className='text-center font-weight-bold py-2 button-action--arrow-option'
-                                                         disabled={isNotInAllowedList}>
+                                                         disabled={isNotInAllowedList}
+            >
                 {t(blockingClientKey)}</button>,
         };
 

@@ -90,9 +90,9 @@ const ClientCell = ({
             },
         ];
 
-        const onClick = () => {
-            dispatch(toggleBlocking(buttonType, domain));
-            dispatch(getStats());
+        const onClick = async () => {
+            await dispatch(toggleBlocking(buttonType, domain));
+            await dispatch(getStats());
         };
 
         const getOptions = (options) => {

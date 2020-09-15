@@ -4,9 +4,10 @@ import axios from 'axios';
 
 import endsWith from 'lodash/endsWith';
 import escapeRegExp from 'lodash/escapeRegExp';
+import React from 'react';
 import { splitByNewLine, sortClients } from '../helpers/helpers';
 import {
-    BLOCK_ACTIONS, CHECK_TIMEOUT, STATUS_RESPONSE, SETTINGS_NAMES, FORM_NAME,
+    BLOCK_ACTIONS, CHECK_TIMEOUT, STATUS_RESPONSE, SETTINGS_NAMES, FORM_NAME, GETTING_STARTED_LINK,
 } from '../helpers/constants';
 import { areEqualVersions } from '../helpers/version';
 import { getTlsStatus } from './encryption';
@@ -184,7 +185,14 @@ export const getUpdate = () => async (dispatch, getState) => {
 
     dispatch(getUpdateRequest());
     const handleRequestError = () => {
-        dispatch(addNoticeToast({ error: 'update_failed' }));
+        const options = {
+            components: {
+                a: <a href={GETTING_STARTED_LINK} target="_blank"
+                      rel="noopener noreferrer" />,
+            },
+        };
+
+        dispatch(addNoticeToast({ error: 'update_failed', options }));
         dispatch(getUpdateFailure());
     };
 
@@ -563,10 +571,10 @@ export const toggleBlocking = (
     const matchPreparedUnblockingRule = userRules.match(preparedUnblockingRule);
 
     if (matchPreparedBlockingRule) {
-        dispatch(setRules(userRules.replace(`${blockingRule}`, '')));
+        await dispatch(setRules(userRules.replace(`${blockingRule}`, '')));
         dispatch(addSuccessToast(i18next.t('rule_removed_from_custom_filtering_toast', { rule: blockingRule })));
     } else if (!matchPreparedUnblockingRule) {
-        dispatch(setRules(`${userRules}${lineEnding}${unblockingRule}\n`));
+        await dispatch(setRules(`${userRules}${lineEnding}${unblockingRule}\n`));
         dispatch(addSuccessToast(i18next.t('rule_added_to_custom_filtering_toast', { rule: unblockingRule })));
     } else if (matchPreparedUnblockingRule) {
         dispatch(addSuccessToast(i18next.t('rule_added_to_custom_filtering_toast', { rule: unblockingRule })));

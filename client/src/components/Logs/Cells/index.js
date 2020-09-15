@@ -52,7 +52,9 @@ const Row = memo(({
     const clients = useSelector((state) => state.dashboard.clients);
 
     const onClick = () => {
-        if (!isSmallScreen) { return; }
+        if (!isSmallScreen) {
+            return;
+        }
         const {
             answer_dnssec,
             client,
@@ -89,7 +91,7 @@ const Row = memo(({
         const isFiltered = checkFiltered(reason);
 
         const isBlocked = reason === FILTERED_STATUS.FILTERED_BLACK_LIST
-                    || reason === FILTERED_STATUS.FILTERED_BLOCKED_SERVICE;
+                || reason === FILTERED_STATUS.FILTERED_BLOCKED_SERVICE;
 
         const buttonType = isFiltered ? BLOCK_ACTIONS.UNBLOCK : BLOCK_ACTIONS.BLOCK;
         const onToggleBlock = () => {
@@ -126,6 +128,25 @@ const Row = memo(({
             }
         };
 
+        const blockButton = <button
+                className={classNames('title--border text-center button-action--arrow-option', { 'bg--danger': !isBlocked })}
+                onClick={onToggleBlock}>
+            {t(buttonType)}
+        </button>;
+
+        const blockForClientButton = <button
+                className='text-center font-weight-bold py-2 button-action--arrow-option'
+                onClick={onBlockingForClientClick}>
+            {t(blockingForClientKey)}
+        </button>;
+
+        const blockClientButton = <button
+                className='text-center font-weight-bold py-2 button-action--arrow-option'
+                onClick={onBlockingClientClick}
+                disabled={isNotInAllowedList}>
+            {t(blockingClientKey)}
+        </button>;
+
         const detailedData = {
             time_table_header: formatTime(time, LONG_TIME_FORMAT),
             date: formatDateTime(time, DEFAULT_SHORT_DATE_FORMAT_OPTIONS),
@@ -138,12 +159,12 @@ const Row = memo(({
             table_name: tracker?.name,
             category_label: hasTracker && captitalizeWords(tracker.category),
             tracker_source: hasTracker && sourceData
-                        && <a
-                                href={sourceData.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="link--green">{sourceData.name}
-                        </a>,
+                    && <a
+                            href={sourceData.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="link--green">{sourceData.name}
+                    </a>,
             response_details: 'title',
             install_settings_dns: upstream,
             elapsed: formattedElapsedMs,
@@ -160,18 +181,9 @@ const Row = memo(({
             source_label: source,
             validated_with_dnssec: dnssec_enabled ? Boolean(answer_dnssec) : false,
             original_response: originalResponse?.join('\n'),
-            [BUTTON_PREFIX + buttonType]: <button onClick={onToggleBlock}
-                                                  className={classNames('title--border text-center button-action--arrow-option', {
-                                                      'bg--danger': !isBlocked,
-                                                  })}>{t(buttonType)}</button>,
-            [BUTTON_PREFIX + blockingForClientKey]: <button onClick={onBlockingForClientClick}
-                                                            className='text-center font-weight-bold py-2 button-action--arrow-option'>
-                {t(blockingForClientKey)}</button>,
-            [BUTTON_PREFIX + blockingClientKey]: <button onClick={onBlockingClientClick}
-                                                         className='text-center font-weight-bold py-2 button-action--arrow-option'
-                                                         disabled={isNotInAllowedList}
-            >
-                {t(blockingClientKey)}</button>,
+            [BUTTON_PREFIX + buttonType]: blockButton,
+            [BUTTON_PREFIX + blockingForClientKey]: blockForClientButton,
+            [BUTTON_PREFIX + blockingClientKey]: blockClientButton,
         };
 
         setDetailedDataCurrent(processContent(detailedData));

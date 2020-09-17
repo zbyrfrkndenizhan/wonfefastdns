@@ -53,6 +53,7 @@ class CustomRules extends Component {
                     subtitle={t('custom_filter_rules_hint')}
                 >
                     <form onSubmit={this.handleSubmit}>
+                        {/* TODO: add comments syntax highlight */}
                         <textarea
                             className="form-control form-control--textarea-large font-monospace"
                             value={userRules}

@@ -5,7 +5,6 @@ import Card from '../../../ui/Card';
 import Form from './Form';
 import { setDnsConfig } from '../../../../actions/dnsConfig';
 import { replaceEmptyStringsWithZeroes, replaceZeroWithEmptyString } from '../../../../helpers/helpers';
-import { CACHE_CONFIG_FIELDS, FORM_NAME } from '../../../../helpers/constants';
 
 const CacheConfig = () => {
     const { t } = useTranslation();

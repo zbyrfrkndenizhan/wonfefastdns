@@ -6,10 +6,16 @@ import { Trans, useTranslation } from 'react-i18next';
 import classnames from 'classnames';
 import Examples from './Examples';
 import { renderRadioField, renderTextareaField } from '../../../../helpers/form';
-import { DNS_REQUEST_OPTIONS, FORM_NAME, UPSTREAM_CONFIGURATION_WIKI_LINK } from '../../../../helpers/constants';
+import {
+    DNS_REQUEST_OPTIONS,
+    FORM_NAME,
+    isFirefox,
+    UPSTREAM_CONFIGURATION_WIKI_LINK,
+} from '../../../../helpers/constants';
 import { testUpstream } from '../../../../actions';
 import { removeEmptyLines } from '../../../../helpers/helpers';
-import './styles.css';
+import { getTextareaCommentsHighlight, syncScroll } from '../../../../helpers/highlightTextareaComments';
+import '../../../ui/texareaCommentsHighlight.css';
 
 const UPSTREAM_DNS_NAME = 'upstream_dns';
 const UPSTREAM_MODE_NAME = 'upstream_mode';
@@ -60,29 +66,15 @@ const renderTextareaWithHighlightField = (props) => {
     const upstream_dns_file = useSelector((state) => state.dnsConfig.upstream_dns_file);
     const ref = useRef(null);
 
-    const syncScroll = (e) => {
-        ref.current.scrollTop = e.target.scrollTop;
-    };
-
-    const renderLine = (line, idx) => {
-        const COMMENT_LINE_TOKEN = '#';
-        const isComment = line.trim().startsWith(COMMENT_LINE_TOKEN);
-
-        const lineClassName = classnames({
-            'text-gray': isComment,
-            'text-transparent': !isComment,
-        });
-
-        return <div className={lineClassName} key={idx}>{line || '\n'}</div>;
-    };
+    const onScroll = (e) => syncScroll(e, ref);
 
     return <>
         {renderTextareaField({
             ...props,
             disabled: !!upstream_dns_file,
-            onScroll: syncScroll,
+            onScroll,
         })}
-        <code className='text-output' ref={ref}>{upstream_dns?.split('\n').map(renderLine)}</code>
+        {getTextareaCommentsHighlight(ref, upstream_dns)}
     </>;
 };
 
@@ -104,8 +96,13 @@ const INPUT_FIELDS = [
         name: UPSTREAM_DNS_NAME,
         type: 'text',
         component: renderTextareaWithHighlightField,
-        className: 'form-control form-control--textarea font-monospace text-input',
-        containerClass: 'text-edit-container mb-5 ml-3',
+        className: classnames('form-control form-control--textarea font-monospace text-input', {
+            'text-input--larger': isFirefox,
+        }),
+        containerClass: classnames('text-edit-container ml-3', {
+            'mb-4': !isFirefox,
+            'mb-6': isFirefox,
+        }),
         placeholder: 'upstream_dns',
         normalizeOnBlur: removeEmptyLines,
     },

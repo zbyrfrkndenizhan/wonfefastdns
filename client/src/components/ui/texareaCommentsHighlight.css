@@ -22,7 +22,15 @@
 .text-input {
     opacity: 1;
     resize: none;
+    height: 10rem;
+}
+
+.text-input--larger {
     height: 11rem;
+}
+
+.text-input--largest {
+    height: 16rem;
 }
 
 .text-output {

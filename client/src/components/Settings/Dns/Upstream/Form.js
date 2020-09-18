@@ -99,7 +99,7 @@ const INPUT_FIELDS = [
         className: classnames('form-control form-control--textarea font-monospace text-input', {
             'text-input--larger': isFirefox,
         }),
-        containerClass: classnames('text-edit-container ml-3', {
+        containerClass: classnames('text-edit-container', {
             'mb-4': !isFirefox,
             'mb-6': isFirefox,
         }),
@@ -158,7 +158,7 @@ const Form = ({
               rel="noopener noreferrer" />,
     };
 
-    return <form onSubmit={handleSubmit}>
+    return <form onSubmit={handleSubmit} className="form--upstream">
         <div className="row">
             <label className="form__label ml-3" htmlFor={UPSTREAM_DNS_NAME}>
                 <Trans components={components}>upstream_dns_help</Trans>

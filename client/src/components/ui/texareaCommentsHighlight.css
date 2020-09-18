@@ -8,7 +8,7 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 97%;
+    width: 100%;
     height: 100%;
     padding: 1rem;
     background: transparent;
@@ -17,6 +17,12 @@
     word-wrap: break-word;
     font-size: 0.9375rem;
     margin: 0;
+}
+
+.form--upstream .text-input,
+.form--upstream .text-output {
+    width: 98%;
+    left: 1%;
 }
 
 .text-input {

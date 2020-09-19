@@ -23,5 +23,6 @@ This project is due to being supported by other open source projects.
 İMPORTANT!
 It runs stably on CentOS 7.
 Wonfe DNS is not responsible for any possible problem!
+Home Edition Cannot Be Used In Commercial Activities!
 
 Developer İnstagram Adress; @zbyrfrkn_official_tr
